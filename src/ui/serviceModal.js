@@ -17,7 +17,7 @@ class ServiceModal {
     this.standardServices = [
       { name: 'Mapbox Standard', urlTemplate: 'https://labs.mapbox.com/standard-style/#{{zoom}}/{{lat}}/{{lon}}', color: '#1A73E8', backgroundImage: 'https://labs.mapbox.com/favicon.ico' },
       { name: '3D Buildings Box', urlTemplate: 'https://hey.mapbox.com/3D-Buildings-Box/#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', color: '#FF9800', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
-      { name: 'Labs HD Roads', urlTemplate: 'https://labs.mapbox.com/hd-roads/?lightPreset=satellite#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', color: '#9C27B0', backgroundImage: 'https://labs.mapbox.com/favicon.ico' },
+      { name: 'Labs HD Roads', urlTemplate: 'https://labs.mapbox.com/hd-roads/?lightPreset=satellite#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', color: '#9C27B0', backgroundImage: 'https://labs.mapbox.com/favicon.ico', altUrlTemplate: 'https://labs.mapbox.com/hd-roads/?lightPreset=day&source=3dln#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', hasShiftModifier: true },
       { name: 'HD Roads Prod', urlTemplate: 'https://console.mapbox.com/studio/tilesets/mapbox.hd-road-v1-bounded/#{{zoom}}/{{lat}}/{{lon}}', color: '#00BCD4', backgroundImage: 'https://www.mapbox.com/favicon.ico', isTileset: true, altUrlTemplate: 'https://console.mapbox.com/studio/tilesets/mapbox.hd-road-v1-bounded-demo/#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}', hasShiftModifier: true },
       { name: '3DLN Demo Style', urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox-3dln/mbx-3d-line-navigation-demo-style.html?title=view&access_token=pk.eyJ1IjoibWFwYm94LTNkbG4iLCJhIjoiY200djloOGQ2MDBmNDJpc2J5OHVtdDVkNCJ9.-Lbyn-czRBlAxwl-yNWdTg&zoomwheel=true&fresh=true#{{zoom}}/{{lat}}/{{lon}}', color: '#E91E63', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
       { name: 'Google Maps', urlTemplate: 'https://www.google.com/maps/@{{lat}},{{lon}},{{zoom}}z', color: '#4285F4', backgroundImage: 'https://www.google.com/favicon.ico', altUrlTemplate: 'https://earth.google.com/web/@{{lat}},{{lon}},{{zoom}}a,0y,0h,0t,0r', hasShiftModifier: true },
@@ -59,7 +59,6 @@ class ServiceModal {
   setupShiftIndicator() {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Shift' || e.keyCode === 16 || e.shiftKey) {
-        console.log('Shift key pressed, key:', e.key, 'keyCode:', e.keyCode, 'shiftKey:', e.shiftKey);
         this.isShiftHeld = true;
         // Add class to body when shift is held for CSS styling
         document.body.classList.add('shift-held');
@@ -71,7 +70,6 @@ class ServiceModal {
     
     document.addEventListener('keyup', (e) => {
       if (e.key === 'Shift' || e.keyCode === 16) {
-        console.log('Shift key released');
         this.isShiftHeld = false;
         // Remove class from body
         document.body.classList.remove('shift-held');
@@ -96,7 +94,7 @@ class ServiceModal {
       if (serviceName === '3D Buildings Box') {
         const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn)');
         if (nameSpan) {
-          nameSpan.textContent = shiftHeld ? '3D Buildings Box (3DLN)' : '3D Buildings Box';
+          nameSpan.textContent = shiftHeld ? '3DLN Demo Box' : '3D Buildings Box';
         }
       }
       
@@ -121,6 +119,14 @@ class ServiceModal {
         const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn)');
         if (nameSpan) {
           nameSpan.textContent = shiftHeld ? 'Footprint' : '3D Model Slots';
+        }
+      }
+      
+      // Update Labs HD Roads name
+      if (serviceName === 'Labs HD Roads') {
+        const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn)');
+        if (nameSpan) {
+          nameSpan.textContent = shiftHeld ? 'Labs HD 3DLN Demo' : 'Labs HD Roads';
         }
       }
     });
@@ -444,7 +450,7 @@ class ServiceModal {
     btn.dataset.serviceName = service.name;
     
     // Mark buttons with additional functionality (Shift modifier)
-    if (service.name === '3D Buildings Box' || service.name === '3D Model Slots' || service.hasShiftModifier) {
+    if (service.name === '3D Buildings Box' || service.name === '3D Model Slots' || service.name === 'Labs HD Roads' || service.hasShiftModifier) {
       btn.classList.add('has-shift-modifier');
     }
     
@@ -575,42 +581,30 @@ class ServiceModal {
     
     let url = this.buildServiceUrl(service.urlTemplate, this.currentCoords);
     
-    // Special handling for 3D Buildings Box with Shift key
     if (service.name === '3D Buildings Box' && shiftKey) {
-      console.log('Adding basemap parameter for 3D Buildings Box');
-      // Add basemap parameter for 3dln-demo preset
       const urlObj = new URL(url);
       urlObj.searchParams.set('basemap', '3dln-demo');
       url = urlObj.toString();
-      console.log('Final URL:', url);
     }
     
-    // Special handling for HD Roads Prod with Shift key - use Demo URL
     if (service.name === 'HD Roads Prod' && shiftKey && service.altUrlTemplate) {
-      console.log('Opening HD Roads Demo instead of Prod');
       url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
-      console.log('Demo URL:', url);
     }
     
-    // Special handling for Google Maps with Shift key - open Google Earth
     if (service.name === 'Google Maps' && shiftKey && service.altUrlTemplate) {
-      console.log('Opening Google Earth instead of Google Maps');
       url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
-      console.log('Google Earth URL:', url);
     }
     
-    // Special handling for 3D Model Slots with Shift key - open Footprint
     if (service.name === '3D Model Slots' && shiftKey && service.altUrlTemplate) {
-      console.log('Opening Footprint instead of 3D Model Slots');
       url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
-      console.log('Footprint URL:', url);
     }
     
-    // Handle custom services with alternative URL
-    if (shiftKey && service.altUrlTemplate && this.customServices.includes(service)) {
-      console.log('Opening alternative URL for custom service');
+    if (service.name === 'Labs HD Roads' && shiftKey && service.altUrlTemplate) {
       url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
-      console.log('Alternative URL:', url);
+    }
+    
+    if (shiftKey && service.altUrlTemplate && this.customServices.includes(service)) {
+      url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
     }
     
     if (url) {
@@ -723,10 +717,8 @@ class ServiceModal {
         }
       }
       
-      // Clean up any double slashes that might have been created
       url = url.replace(/([^:]\/)\/+/g, '$1');
       
-      console.log('Built URL:', url);
       return url;
     } catch (error) {
       console.error('Error building URL:', error);
@@ -956,7 +948,6 @@ class ServiceModal {
         
         if (shiftNumberMap[key]) {
           keyNumber = shiftNumberMap[key];
-          console.log(`Shift+${keyNumber} detected, converted ${key} to ${keyNumber}`);
         } else if (key >= '1' && key <= '9') {
           keyNumber = key;
         }
@@ -977,9 +968,7 @@ class ServiceModal {
           if (service) {
             e.preventDefault();
             e.stopPropagation();
-            // getCurrentCoordinates is called inside openService, no need to call it here
             const shiftState = this.isShiftHeld || e.shiftKey;
-            console.log('Opening service:', service.name, 'index:', index, 'isShiftHeld:', this.isShiftHeld, 'e.shiftKey:', e.shiftKey, 'final shiftState:', shiftState);
             await this.openService(service, shiftState);
           } else {
             console.warn('Service not found:', serviceName, 'at index:', index);

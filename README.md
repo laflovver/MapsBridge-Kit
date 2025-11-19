@@ -1,4 +1,4 @@
-# 🧭 Coordinate Extractor v3.1.0
+# 🧭 Coordinate Extractor v3.2.0
 
 A powerful Chrome extension that automatically extracts geographic coordinates (latitude, longitude, zoom, pitch, bearing) from map URLs. Works with most popular mapping services.
 
@@ -12,9 +12,16 @@ A powerful Chrome extension that automatically extracts geographic coordinates (
 - **🎨 Color-Coded Labels**: Customize slot names with colors
 - **🗺️ Service Navigation**: Quick access to multiple map services with drag-and-drop reordering
 - **🎯 Hotkeys for Services**: Direct navigation to services with keys 1-9
+- **🔄 Alternative Service URLs**: Hold Shift and click to access alternative service versions with color-coded indicators
 - **🎨 Service Visual Identity**: Colored borders and background images based on service branding
 - **✨ Visual Feedback**: Icon rotation animation shows when extension is loading
 
+---
+
+## 📸 Screenshots & Demo
+
+### Main Interface
+![Main Interface](docs/gifs/main-interface.gif)
 ---
 
 ## 🚀 Installation
@@ -60,11 +67,41 @@ When you open the popup, the extension automatically extracts coordinates from t
 | Shortcut | Action |
 |----------|--------|
 | **1-9** | Navigate directly to service 1-9 |
+| **Shift + Click** | Access alternative version of service (if available) |
 | **Drag & Drop** | Reorder services to your preference |
 
 ---
 
 ## 📚 Usage Examples
+
+### Visual Guide
+
+#### Extracting Coordinates
+1. Navigate to any map website (e.g., Google Maps, Mapbox)
+2. Click the extension icon
+3. Coordinates are automatically extracted and displayed
+
+![Extract Example](docs/screenshots/extract-example.png)
+
+#### Saving to Slots
+1. Extract or paste coordinates
+2. Select slot 1, 2, or 3
+3. Press **V** to paste
+4. Location name appears automatically
+
+![Save Slot](docs/screenshots/save-slot.png)
+
+#### Switching between services
+1. Choose Service from "Quick Access"
+1.1. For alternative version of services hold Shift
+2. Press hotkey 1-9 or left mouse click on Service button
+3. Required service will open in new tab
+
+![Save Slot](docs/screenshots/quick-access.png)
+
+---
+
+### Text Examples
 
 ### Example 1: Extract Coordinates
 1. Navigate to any map website
@@ -83,6 +120,13 @@ When you open the popup, the extension automatically extracts coordinates from t
 1. Select a slot with saved coordinates
 2. Navigate to a map website
 3. Press **G** to update the URL with those coordinates
+
+### Example 4: Use Alternative Services
+1. Hold **Shift** key
+2. Click **3D Buildings Box** → Opens **3DLN Demo Box** (orange highlight)
+3. Click **Labs HD Roads** → Opens **Labs HD 3DLN Demo** (deep purple highlight)
+4. Click **Google Maps** → Opens **Google Earth** (blue highlight)
+5. Click **3D Model Slots** → Opens **Footprint** (purple highlight)
 
 ---
 
@@ -119,16 +163,17 @@ Slots 1-3 automatically fetch location names using OpenStreetMap's Nominatim API
 
 The extension supports navigation to multiple map services:
 - **Mapbox Standard** - Standard Mapbox style
-- **3D Buildings Box** - 3D building visualizations
-- **Labs HD Roads** - High-definition road mapping
-- **HD Roads Prod** - Production HD roads tileset
+- **3D Buildings Box** / **3DLN Demo Box** (Shift) - 3D building visualizations
+- **Labs HD Roads** / **Labs HD 3DLN Demo** (Shift) - High-definition road mapping
+- **HD Roads Prod** / **HD Roads Demo** (Shift) - Production HD roads tileset
 - **3DLN Demo Style** - 3D line navigation demo
-- **Google Maps** - Street and satellite imagery
-- **Google Earth** - 3D Earth view
-- **3D Model Slots** - 3D model visualization
+- **Google Maps** / **Google Earth** (Shift) - Street and satellite imagery
+- **3D Model Slots** / **Footprint** (Shift) - 3D model visualization
 - **OpenStreetMap** - Open-source map data
 - **Bing Maps** - Microsoft mapping service
 - **Yandex Maps** - Russian mapping service
+
+**Tip**: Hold **Shift** and click a service button to access its alternative version. The button will highlight in a color matching the alternative service theme.
 
 You can add custom services by clicking the "+ Add Custom Service" button and providing a service name and URL template with example coordinates.
 
@@ -175,36 +220,7 @@ src/
 
 ## 📝 Changelog
 
-### v3.1.0 (Latest)
-- **Icon rotation animation**: Extension icon rotates while popup is loading for visual feedback
-- **Improved coordinate saving**: Coordinates in slots 1-3 save immediately; location names are fetched in the background
-- **Better reliability**: Coordinates are preserved even if geocoding fails or takes too long
-- Changed hotkey from Command+Shift+F to **Command+Shift+E** (Mac) / Ctrl+Shift+E (Windows/Linux)
-- Added 3D Model Slots service
-- Reordered quick access services (3D Model Slots at 8th, OpenStreetMap at 9th, Bing Maps at 10th)
-- Log panel now displays all console logs for better debugging
-- Fixed hotkey conflicts between slot selection and service navigation
-- Improved popup window appearance and positioning
-- Added service navigation modal with drag-and-drop reordering
-- Implemented hotkeys 1-9 for direct service navigation
-- Added color-coded service buttons based on service branding
-- Added background images with blur effects for visual service identity
-- Support for pitch and bearing parameters in 3D map services
-- Service visibility toggle and custom service addition
-- Improved UI/UX with modern design inspired by 3D Buildings Box
-- Updated hotkeys: Option+1,2,3,4 for slot selection
-- Persistent service order and preferences in localStorage
-
-### v3.0.0
-- Improved coordinate parser (universal support)
-- Fixed bearing/pitch handling (only added when non-zero)
-- Better compatibility with various mapping services
-- Simplified codebase for easier maintenance
-- Modular architecture refactoring
-- Automatic location naming with geocoding
-- Enhanced UI with animations
-- 4-slot storage system
-- Comprehensive keyboard shortcuts
+See [CHANGELOG.md](CHANGELOG.md) for the complete version history and detailed release notes.
 
 ---
 

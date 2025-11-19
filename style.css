@@ -1111,21 +1111,40 @@ button {
   transform: translateY(-50%) scale(1.2);
 }
 
-/* Buttons with shift modifier light up when shift is held */
+/* Buttons with shift modifier - different colors for different services */
 body.shift-held .service-btn.has-shift-modifier {
   background: #FF9800;
   box-shadow: 0 0 12px 0 rgba(255, 152, 0, 0.4);
 }
 
-/* Different colors for different services with shift modifier */
+/* 3DLN Demo Buildings box - orange (matches 3D/demo theme) */
+body.shift-held .service-btn[data-service-name="3D Buildings Box"].has-shift-modifier {
+  background: #FF9800;
+  box-shadow: 0 0 12px 0 rgba(255, 152, 0, 0.4);
+}
+
+/* HD Roads Demo - cyan (matches production blue theme) */
 body.shift-held .service-btn[data-service-name="HD Roads Prod"].has-shift-modifier {
   background: #00BCD4;
   box-shadow: 0 0 12px 0 rgba(0, 188, 212, 0.4);
 }
 
+/* Google Earth - blue (matches Google brand) */
 body.shift-held .service-btn[data-service-name="Google Maps"].has-shift-modifier {
   background: #4285F4;
   box-shadow: 0 0 12px 0 rgba(66, 133, 244, 0.4);
+}
+
+/* Footprint - purple (matches 3D Model Slots theme) */
+body.shift-held .service-btn[data-service-name="3D Model Slots"].has-shift-modifier {
+  background: #9C27B0;
+  box-shadow: 0 0 12px 0 rgba(156, 39, 176, 0.4);
+}
+
+/* Labs HD 3DLN Demo - deep purple (matches Labs HD Roads theme) */
+body.shift-held .service-btn[data-service-name="Labs HD Roads"].has-shift-modifier {
+  background: #7B1FA2;
+  box-shadow: 0 0 12px 0 rgba(123, 31, 162, 0.4);
 }
 
 .btn-add-custom {

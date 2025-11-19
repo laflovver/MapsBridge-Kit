@@ -26,42 +26,26 @@ class CoordinateExtractorApp {
    */
   async init() {
     try {
-      // Quick initialization - show UI first, load data async
-      
-      // Initialize UI components immediately
       if (typeof UIComponents === 'undefined') {
         throw new Error("UIComponents is not defined");
       }
       UIComponents.init();
       
-      // Setup event handlers immediately so UI is responsive
       this.setupEventListeners();
-      
-      // Store global instance early
       window.appInstance = this;
       
-      // Notify background that UI is ready (this will stop loading animation)
-      // We send this early so user sees popup is responsive
-      // Use a flag to prevent duplicate messages
       if (chrome.runtime && chrome.runtime.sendMessage && !this._popupReadySent) {
         this._popupReadySent = true;
-        // Use setTimeout to ensure message is sent after popup is fully visible
         setTimeout(() => {
-          chrome.runtime.sendMessage('popup-ready').catch(() => {
-            // Ignore errors if background is not available
-          });
+          chrome.runtime.sendMessage('popup-ready').catch(() => {});
         }, 100);
       }
-      
-      // Load saved coordinates immediately (fast, from storage)
       this.loadStoredCoordinates().catch(err => {
         console.error("Error loading stored coordinates:", err);
       });
       
-      // Initialize service modal asynchronously (may take time)
       if (typeof ServiceModal !== 'undefined') {
         this.serviceModal = new ServiceModal();
-        // Don't await - let it load in background
         this.serviceModal.init().then(() => {
           window.serviceModalInstance = this.serviceModal;
         }).catch(err => {
