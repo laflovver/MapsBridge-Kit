@@ -53,14 +53,12 @@ class CoordinateExtractorApp {
         });
       }
       
-      // Extract coordinates from active tab asynchronously (may take time)
       this.extractCurrentTabCoordinates().catch(err => {
         console.error("Error extracting coordinates:", err);
       });
       
     } catch (error) {
       console.error("App initialization error:", error);
-      // Still notify that initialization attempt completed (only if not already sent)
       if (chrome.runtime && chrome.runtime.sendMessage && !this._popupReadySent) {
         this._popupReadySent = true;
         chrome.runtime.sendMessage('popup-ready').catch(() => {});
@@ -83,7 +81,6 @@ class CoordinateExtractorApp {
       }
     }
     
-    // Fallback: get from slot 0
     const slot0 = await StorageManager.getSlot(0);
     if (slot0 && slot0.lat && slot0.lon) {
       return slot0;
@@ -108,7 +105,6 @@ class CoordinateExtractorApp {
         if (slot) {
           UIComponents.SlotRenderer.renderContent(element, displayText, slot.labelColor || "");
         } else {
-          // Clear the slot completely
           element.innerHTML = "";
           element.textContent = displayText;
         }
@@ -209,14 +205,12 @@ class CoordinateExtractorApp {
         return;
       }
       
-      // Check if name was changed by user (re-check since this runs asynchronously)
       const currentSlot = await StorageManager.getSlot(slotIndex);
       if (currentSlot && currentSlot.userNamed) {
         console.log('Slot has user-defined name, skipping geocoding');
         return;
       }
       
-      // Verify coordinates haven't changed (user might have pasted different coordinates)
       if (currentSlot && (
         currentSlot.lat !== coords.lat || 
         currentSlot.lon !== coords.lon
@@ -225,29 +219,23 @@ class CoordinateExtractorApp {
         return;
       }
       
-      // Show loading indicator
       const slotElement = document.getElementById(`saved-coords-${slotIndex}`);
       if (slotElement) {
         slotElement.textContent = 'Loading location...';
       }
       
-      // Get location name
       const locationName = await Geocoder.reverseGeocode(coords.lat, coords.lon);
       
-      // Re-check slot state after geocoding (it might have changed)
       const slotAfterGeocoding = await StorageManager.getSlot(slotIndex);
       if (!slotAfterGeocoding) {
-        // Slot was cleared, don't update
         return;
       }
       
       if (slotAfterGeocoding.userNamed) {
-        // User named it while geocoding was in progress
         console.log('Slot was manually named during geocoding, skipping update');
         return;
       }
       
-      // Verify coordinates still match
       if (slotAfterGeocoding.lat !== coords.lat || slotAfterGeocoding.lon !== coords.lon) {
         console.log('Coordinates changed during geocoding, skipping update');
         return;
@@ -256,17 +244,15 @@ class CoordinateExtractorApp {
       if (locationName) {
         const shortName = Geocoder.createShortName(locationName);
         
-        // Update only the name fields, preserve other properties
         const updatedCoords = {
-          ...slotAfterGeocoding, // Preserve existing coordinates and other properties
+          ...slotAfterGeocoding,
           name: shortName,
           fullName: locationName,
-          userNamed: false // Auto-generated name
+          userNamed: false
         };
         
         await StorageManager.setSlot(slotIndex, updatedCoords);
         
-        // Update UI after adding name
         const element = document.getElementById(`saved-coords-${slotIndex}`);
         if (element) {
           const updatedSlot = await StorageManager.getSlot(slotIndex);
@@ -274,7 +260,6 @@ class CoordinateExtractorApp {
           UIComponents.SlotRenderer.renderContent(element, displayText, updatedSlot?.labelColor);
         }
       } else {
-        // If geocoding failed, restore display to show coordinates without name
         const element = document.getElementById(`saved-coords-${slotIndex}`);
         if (element && slotAfterGeocoding) {
           const displayText = StorageManager.getSlotDisplayText(slotAfterGeocoding, slotIndex);
@@ -283,7 +268,6 @@ class CoordinateExtractorApp {
       }
     } catch (error) {
       console.error('Error adding location name:', error);
-      // On error, restore display to show coordinates
       try {
         const element = document.getElementById(`saved-coords-${slotIndex}`);
         if (element) {
@@ -324,7 +308,6 @@ class CoordinateExtractorApp {
    * Slot editing
    */
   handleEditSlot() {
-    // Use the same method as the hotkey handler
     this.editActiveSlotLabel();
   }
 
@@ -363,12 +346,10 @@ class CoordinateExtractorApp {
    * Update slot visual selection
    */
   updateSlotSelection() {
-    // Remove previous selection
     document.querySelectorAll('.saved-slot-item').forEach(item => {
       item.classList.remove('selected-saved');
     });
 
-    // Add selection to active slot
     const activeSlot = document.getElementById(`slot-${this.activeSlotId}`);
     if (activeSlot) {
       activeSlot.classList.add('selected-saved');
@@ -385,7 +366,6 @@ class CoordinateExtractorApp {
       return window.CliParser.parse(cliString);
     }
     
-    // Fallback parsing
     const parts = cliString.split(/\s+/);
     const result = {};
     for (let i = 0; i < parts.length; i++) {
@@ -423,14 +403,9 @@ class CoordinateExtractorApp {
     const coords = CoordinateParser.extractFromUrl(currentUrl);
     
     if (coords) {
-      // Save to slot 0 and display
       await StorageManager.setSlot(0, { ...coords, name: "", labelColor: "" });
       UIComponents.CoordinateDisplay.display(coords);
-      
-      // Also save to clipboard buffer for navigation
       this.clipboardCoords = coords;
-      
-      // Update slot 0 display
       const slot0Element = document.getElementById("saved-coords-0");
       if (slot0Element) {
         const cliString = CoordinateParser.formatToCli(coords);
@@ -438,8 +413,6 @@ class CoordinateExtractorApp {
       }
       
       UIComponents.Logger.log(`Coordinates extracted: ${coords.lat}, ${coords.lon}, zoom: ${coords.zoom}`, "success");
-      
-      // Slot 0 should not auto-determine location name
     } else {
       const slot0Element = document.getElementById("saved-coords-0");
       if (slot0Element) {
@@ -468,15 +441,12 @@ class CoordinateExtractorApp {
       
       let textToCopy = "";
       
-      // Determine source to copy from
       if (this.activeSlotId && this.activeSlotId !== "saved-coords-0") {
         const element = document.getElementById(this.activeSlotId);
         if (element) {
-          // Prefer coordinates from data attribute (without label) if available
           if (element.dataset.coordinates) {
             textToCopy = element.dataset.coordinates;
           } else {
-            // Fallback to visible coordinates
             const coordsSpan = element.querySelector(".slot-coords");
             textToCopy = coordsSpan ? coordsSpan.textContent : element.textContent;
           }
@@ -504,19 +474,16 @@ class CoordinateExtractorApp {
         const formatted = CoordinateParser.formatToCli(coords);
         
         if (this.activeSlotId && this.activeSlotId !== "saved-coords-0") {
-          // Save to active slot
           const slotIndex = parseInt(this.activeSlotId.split("-").pop(), 10);
           const currentSlot = await StorageManager.getSlot(slotIndex);
           
-          // Save coordinates immediately (without waiting for geocoder)
           await StorageManager.setSlot(slotIndex, {
             ...coords,
             name: currentSlot?.name || "",
             labelColor: currentSlot?.labelColor || "",
-            userNamed: currentSlot?.userNamed || false // Preserve userNamed if name exists
+            userNamed: currentSlot?.userNamed || false
           });
           
-          // Update UI immediately with coordinates (without name yet)
           const element = document.getElementById(this.activeSlotId);
           if (element) {
             const savedSlot = await StorageManager.getSlot(slotIndex);
@@ -524,15 +491,12 @@ class CoordinateExtractorApp {
             UIComponents.SlotRenderer.renderContent(element, displayText, currentSlot?.labelColor);
           }
           
-          // For slots 1, 2, 3 add automatic naming in background (async, non-blocking)
           if (slotIndex > 0 && coords.lat && coords.lon) {
-            // Run geocoding in background - don't await, so coordinates are already saved publicly
             this.addLocationName(coords, slotIndex).catch(err => {
               console.error('Background geocoding failed:', err);
             });
           }
         } else {
-          // Display in slot 0
           const element = document.getElementById("saved-coords-0");
           if (element) {
             UIComponents.SlotRenderer.renderContent(element, formatted);
@@ -551,12 +515,73 @@ class CoordinateExtractorApp {
     const navigateBtn = document.getElementById("navigate-url");
     if (!navigateBtn) return;
 
+    const goText = navigateBtn.querySelector(".go-text");
+    const goArrow = navigateBtn.querySelector(".go-arrow");
+    const buttonHotkey = navigateBtn.querySelector(".button-hotkey");
+    
+    if (!goText || !goArrow || !buttonHotkey) return;
+    
+    let typewriterTimeout = null;
+    let isTyping = false;
+    const originalGoText = goText.textContent || "Go";
+    
+    const typeWriter = (text, element, speed = 30) => {
+      if (isTyping) return;
+      isTyping = true;
+      element.textContent = "";
+      let i = 0;
+      
+      const type = () => {
+        if (i < text.length) {
+          element.textContent += text.charAt(i);
+          i++;
+          typewriterTimeout = setTimeout(type, speed);
+        } else {
+          isTyping = false;
+        }
+      };
+      
+      type();
+    };
+    
+    const showRandomMessage = () => {
+      if (typewriterTimeout) {
+        clearTimeout(typewriterTimeout);
+        typewriterTimeout = null;
+      }
+      
+      goArrow.style.opacity = "0";
+      buttonHotkey.style.opacity = "0";
+      
+      const message = GoButtonMessages.getRandomMessage();
+      typeWriter(message, goText, 30);
+    };
+    
+    const restoreOriginal = () => {
+      if (typewriterTimeout) {
+        clearTimeout(typewriterTimeout);
+        typewriterTimeout = null;
+      }
+      
+      goText.textContent = originalGoText;
+      goArrow.style.opacity = "1";
+      buttonHotkey.style.opacity = "1";
+      isTyping = false;
+    };
+    
+    navigateBtn.addEventListener("mouseenter", () => {
+      showRandomMessage();
+    });
+    
+    navigateBtn.addEventListener("mouseleave", () => {
+      restoreOriginal();
+    });
+
     navigateBtn.addEventListener("click", async () => {
       UIComponents.Utils.animateButton(navigateBtn);
       
       let coordsToUse = null;
 
-      // Get coordinates from active slot (only for slots 1, 2, 3)
       if (this.activeSlotId && this.activeSlotId !== "saved-coords-0") {
         const slotIndex = parseInt(this.activeSlotId.split("-").pop(), 10);
         const slot = await StorageManager.getSlot(slotIndex);
@@ -565,7 +590,6 @@ class CoordinateExtractorApp {
         }
       }
 
-      // If no coordinates in slot, use from clipboard buffer
       if (!coordsToUse) {
         coordsToUse = this.clipboardCoords;
       }
@@ -596,19 +620,16 @@ class CoordinateExtractorApp {
       switch (e.code) {
         case "KeyC":
           e.preventDefault();
-          // UIComponents.Logger.log("Hotkey 'C' pressed.", "info");
           document.getElementById("copy-cli")?.click();
           break;
           
         case "KeyV":
           e.preventDefault();
-          // UIComponents.Logger.log("Hotkey 'V' pressed.", "info");
           document.getElementById("paste-coords")?.click();
           break;
           
         case "KeyG":
           e.preventDefault();
-          // UIComponents.Logger.log("Hotkey 'G' pressed.", "info");
           document.getElementById("navigate-url")?.click();
           break;
           
@@ -621,13 +642,11 @@ class CoordinateExtractorApp {
         case "Digit2":
         case "Digit3":
         case "Digit4":
-          // Check if Option/Alt is pressed for slots
           if (e.altKey || e.metaKey) {
             e.preventDefault();
             const slotNumber = parseInt(e.code.replace("Digit", ""), 10);
             this.selectSlot(slotNumber);
           }
-          // If no modifier, let services handle it (handled in serviceModal.js)
           break;
       }
     });
@@ -698,11 +717,9 @@ class CoordinateExtractorApp {
       }
     });
 
-    // Setup handlers for edit buttons
     document.querySelectorAll(".saved-slot-item .edit-btn").forEach((btn) => {
       const slot = btn.closest(".saved-slot-item");
       
-      // Hide button for slot 0
       if (slot && slot.id === "slot-saved-coords-0") {
         btn.style.display = "none";
         return;
@@ -723,7 +740,6 @@ class CoordinateExtractorApp {
   startEditingSlotLabel(btn, slot) {
     if (!slot || slot.querySelector(".label-input")) return;
 
-    // Button animation
     btn.classList.add("edit-animate");
     btn.addEventListener("animationend", () => {
       btn.classList.remove("edit-animate");
@@ -733,7 +749,6 @@ class CoordinateExtractorApp {
 
     const inner = slot.querySelector(".slot-inner") || slot;
     
-    // Get current label
     let currentLabel = "";
     const labelSpan = inner.querySelector(".slot-label");
     if (labelSpan) {
@@ -742,24 +757,19 @@ class CoordinateExtractorApp {
       currentLabel = btn.dataset.label;
     }
 
-    // Store original content to restore if needed
     const originalContent = inner.innerHTML;
     inner.dataset.originalContent = originalContent;
     
-    // Get label color or generate new one
     let labelColor = btn.dataset.labelColor;
     if (!labelColor) {
       labelColor = UIComponents.Utils.getRandomReadableColor();
       btn.dataset.labelColor = labelColor;
     }
     
-    // Create input field inside slot-inner container
     const input = document.createElement("input");
     input.type = "text";
     input.value = currentLabel;
     input.classList.add("label-input");
-    
-    // Style input to match slot-inner content
     Object.assign(input.style, {
       width: "100%",
       height: "100%",
@@ -777,13 +787,11 @@ class CoordinateExtractorApp {
       position: "relative"
     });
     
-    // Replace inner content with input
     inner.innerHTML = "";
     inner.appendChild(input);
     input.focus();
     input.setSelectionRange(0, input.value.length);
 
-    // Handle edit completion
     const finishEditing = async () => {
       const newLabel = input.value.trim();
       btn.dataset.label = newLabel;
@@ -807,7 +815,6 @@ class CoordinateExtractorApp {
         finishEditing();
       } else if (e.key === "Escape") {
         e.preventDefault();
-        // Restore original content
         inner.innerHTML = originalContent;
         this.hotkeysDisabled = false;
       }
@@ -834,14 +841,11 @@ class CoordinateExtractorApp {
 
 }
 
-// Export for use in extension
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = CoordinateExtractorApp;
 } else {
   window.CoordinateExtractorApp = CoordinateExtractorApp;
 }
-
-// Initialize application when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
   if (typeof CoordinateExtractorApp !== 'undefined') {
     const app = new CoordinateExtractorApp();

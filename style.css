@@ -167,6 +167,7 @@ body {
 }
 
 .panel-section {
+  position: relative;
   background: rgba(228, 228, 228, 0.20);
   backdrop-filter: blur(5px);
   border: none;
@@ -576,6 +577,18 @@ button {
   color: white;
   box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.25) inset;
   border: none;
+  position: relative;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-accent .go-arrow,
+.btn-accent .button-hotkey {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  display: inline-block;
 }
 
 .btn-accent:hover {
@@ -584,8 +597,16 @@ button {
   transform: translateY(-1px) scale(1.01);
 }
 
+.btn-accent:hover .go-arrow {
+  transform: translateX(3px);
+}
+
 .btn-accent:active {
   transform: translateY(0) scale(0.98);
+}
+
+.btn-accent:active .go-arrow {
+  transform: translateX(6px);
 }
 
 /* Compact Button */
