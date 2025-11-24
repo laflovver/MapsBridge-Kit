@@ -1,4 +1,4 @@
-# 🧭 Coordinate Extractor v3.2.0
+# 🧭 MapsBridge Kit v3.3.0
 
 A powerful Chrome extension that automatically extracts geographic coordinates (latitude, longitude, zoom, pitch, bearing) from map URLs. Works with most popular mapping services.
 
@@ -8,6 +8,7 @@ A powerful Chrome extension that automatically extracts geographic coordinates (
 - **🌍 Universal Support**: Works with various URL formats and mapping services
 - **📋 4 Storage Slots**: Save and manage up to 4 coordinate sets with instant saving
 - **⌨️ Keyboard Shortcuts**: Quick actions with hotkeys
+- **🔄 Dual Format Support**: Switch between CLI and URL coordinate formats with one click or hotkey
 - **🌐 Automatic Location Names**: Background geocoding for slots 1-3 (coordinates save immediately)
 - **🎨 Color-Coded Labels**: Customize slot names with colors
 - **🗺️ Service Navigation**: Quick access to multiple map services with drag-and-drop reordering
@@ -26,22 +27,24 @@ A powerful Chrome extension that automatically extracts geographic coordinates (
 
 ## 🚀 Installation
 
-1. Download or clone this repository
+1. Download or clone the [MapsBridge-Kit](https://github.com/laflovver/MapsBridge-Kit) repository
 2. Open Chrome and navigate to `chrome://extensions/`
 3. Enable **Developer mode** (toggle in the top-right)
 4. Click **Load unpacked** and select the extension folder
-5. The Coordinate Extractor icon will appear in your toolbar
+5. The MapsBridge Kit icon will appear in your toolbar
 
 ---
 
 ## 🔍 How It Works
 
 ### Automatic Extraction
-When you open the popup, the extension automatically extracts coordinates from the current tab's URL. Supported formats:
+When you open the popup, the extension automatically extracts coordinates from the current tab's URL. Supported input formats:
 - Path format: `/@lat,lon,zoom`
 - Hash format: `#zoom/lat/lon` or `#map=zoom/lat/lon`
+- URL format: `#zoom/lat/lon/bearing/pitch`
 - Query parameters: `?lat=X&lon=Y&zoom=Z`
 - Special formats: `ll=`, `cp=`, `center=`
+- CLI format: `--lon X --lat Y --zoom Z`
 
 ### Storage Slots
 - **Slot 0**: Always shows coordinates from the current URL (read-only)
@@ -60,6 +63,7 @@ When you open the popup, the extension automatically extracts coordinates from t
 | **V** | Paste coordinates from clipboard |
 | **G** | Open service navigation modal |
 | **E** | Edit active slot's label |
+| **R** | Toggle between CLI and URL format |
 | **Q** | Select slot 0 |
 | **Delete/Backspace** | Clear active slot |
 
@@ -130,9 +134,12 @@ When you open the popup, the extension automatically extracts coordinates from t
 
 ---
 
-## 🛠️ CLI Format
+## 🛠️ Coordinate Formats
 
-Coordinates are stored in CLI format:
+The extension supports two coordinate formats that you can switch between:
+
+### CLI Format
+Coordinates in CLI format:
 ```
 --lon 2.2768 --lat 48.85891 --zoom 13.75
 ```
@@ -143,6 +150,25 @@ With rotation and tilt (when needed):
 ```
 
 **Note**: Bearing and pitch are only included when non-zero to ensure compatibility with all mapping services.
+
+### URL Format
+Coordinates in URL format (hash-based):
+```
+#13.75/48.85891/2.2768/0/0
+```
+
+With rotation and tilt:
+```
+#13.75/48.85891/2.2768/45/60
+```
+
+Format: `#zoom/latitude/longitude/bearing/pitch`
+
+### Switching Formats
+- Click the format toggle button in the header (shows "CLI Format" or "URL Format")
+- Press **R** hotkey to quickly toggle between formats
+- Your preferred format is automatically saved and restored on next open
+- Both formats are supported for pasting - the extension automatically detects the format
 
 ---
 
@@ -207,6 +233,7 @@ src/
 │   └── serviceModal.js     # Service navigation with drag-and-drop
 └── utils/
     ├── cliParser.js        # CLI string parsing
+    ├── urlFormatParser.js  # URL format parsing
     └── geocoder.js         # Location name fetching
 ```
 

@@ -1,16 +1,7 @@
 "use strict";
 
-/**
- * Modern CLI string parser
- * Improved version of parseCliString with better validation and error handling
- */
 class CliParser {
   
-  /**
-   * Parse CLI string to coordinates object
-   * @param {string} cliString - CLI string in format "--lon X --lat Y --zoom Z"
-   * @returns {Object|null} Coordinates object or null
-   */
   static parse(cliString) {
     if (!cliString || typeof cliString !== 'string') {
       return null;
@@ -29,23 +20,20 @@ class CliParser {
           if (!isNaN(numValue)) {
             result[key] = numValue;
           }
-          i++; // Skip the value in the next iteration
+          i++;
         }
       }
     }
     
-        // Validate required fields
     if (!result.lon || !result.lat) {
       return null;
     }
     
-        // Return only the fields that are actually present
     const coordinates = {
       lat: result.lat,
       lon: result.lon
     };
     
-        // Add optional fields only if they exist
     if (typeof result.zoom === 'number') coordinates.zoom = result.zoom;
     if (typeof result.bearing === 'number') coordinates.bearing = result.bearing;
     if (typeof result.pitch === 'number') coordinates.pitch = result.pitch;
@@ -53,11 +41,6 @@ class CliParser {
     return coordinates;
   }
 
-  /**
-   * Format coordinates object to CLI string
-   * @param {Object} coords - Coordinates object
-   * @returns {string} CLI string
-   */
   static format(coords) {
     if (!coords || typeof coords !== 'object') {
       return '';
@@ -74,11 +57,6 @@ class CliParser {
     return parts.join(' ');
   }
 
-  /**
-   * Check CLI string validity
-   * @param {string} cliString - CLI string to check
-   * @returns {boolean} true if string is valid
-   */
   static validate(cliString) {
     const parsed = this.parse(cliString);
     return parsed !== null && 
@@ -89,7 +67,6 @@ class CliParser {
   }
 }
 
-// Export for compatibility
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = CliParser;
 } else {

@@ -196,6 +196,59 @@ body {
   margin: 0;
 }
 
+.format-toggle-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-secondary);
+  transition: all var(--transition-normal);
+}
+
+.format-toggle-btn:hover {
+  color: var(--primary);
+  transform: scale(1.05);
+}
+
+.format-toggle-btn .format-label {
+  margin: 0;
+}
+
+.format-toggle-btn .format-switch {
+  font-size: 12px;
+  opacity: 0.6;
+  transition: transform var(--transition-normal);
+}
+
+.format-toggle-btn:hover .format-switch {
+  opacity: 1;
+  transform: rotate(90deg);
+}
+
+.format-toggle-btn .button-hotkey {
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+  background: rgba(145, 154, 168, 0.25);
+  color: var(--text-secondary);
+  padding: 3px 7px;
+  border-radius: 4px;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: var(--space-xs);
+}
+
+.format-toggle-btn:hover .button-hotkey {
+  opacity: 1;
+}
+
 /* === OLD SECTION STYLES (deprecated but kept for compatibility) === */
 .section {
   background: var(--surface);

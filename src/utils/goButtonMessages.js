@@ -1,8 +1,5 @@
 "use strict";
 
-/**
- * Go Button Messages - Multilingual humorous messages for the Go button
- */
 class GoButtonMessages {
   static getMessages() {
     return [

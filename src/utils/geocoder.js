@@ -1,16 +1,7 @@
 "use strict";
 
-/**
- * Geocoder for getting location names from coordinates
- */
 class Geocoder {
   
-  /**
-   * Get location name from coordinates
-   * @param {number} lat - Latitude
-   * @param {number} lon - Longitude
-   * @returns {Promise<string|null>} Location name or null
-   */
   static async reverseGeocode(lat, lon) {
     try {
       // First try OpenStreetMap Nominatim (free)
@@ -32,12 +23,6 @@ class Geocoder {
     }
   }
   
-  /**
-   * Query OpenStreetMap Nominatim
-   * @param {number} lat - Latitude
-   * @param {number} lon - Longitude
-   * @returns {Promise<string|null>} Location name
-   */
   static async _queryOSM(lat, lon) {
     try {
       // First try to find landmarks with high rating
@@ -45,7 +30,7 @@ class Geocoder {
       
       const response = await fetch(poiUrl, {
         headers: {
-          'User-Agent': 'Coordinate-Extractor/1.0',
+          'User-Agent': 'MapsBridge-Kit/3.3.0',
           'Accept-Language': 'en'
         }
       });
@@ -77,12 +62,6 @@ class Geocoder {
     }
   }
   
-  /**
-   * Query Mapbox Geocoding API
-   * @param {number} lat - Latitude
-   * @param {number} lon - Longitude
-   * @returns {Promise<string|null>} Location name
-   */
   static async _queryMapbox(lat, lon) {
     try {
       // Mapbox API key required
@@ -116,11 +95,6 @@ class Geocoder {
     }
   }
   
-  /**
-   * Format name from OSM data
-   * @param {Object} data - OSM data
-   * @returns {string} Formatted name
-   */
   static _formatOSMName(data) {
     const address = data.address || {};
     const extratags = data.extratags || {};
@@ -154,9 +128,6 @@ class Geocoder {
     }
   }
   
-  /**
-   * Search for landmarks and important places
-   */
   static _findLandmark(address, extratags, namedetails) {
     // 1. First search for name in namedetails (most accurate)
     const nameKeys = ['name:en', 'name', 'name:official', 'name:short'];
@@ -209,9 +180,6 @@ class Geocoder {
     return null;
   }
   
-  /**
-   * Get street and house number information
-   */
   static _getStreetInfo(address) {
     const street = address.road || address.street || address.pedestrian || 
                    address.footway || address.path || address.cycleway;
@@ -245,11 +213,6 @@ class Geocoder {
     return result;
   }
   
-  /**
-   * Format name from Mapbox data
-   * @param {Object} feature - Mapbox feature
-   * @returns {string} Formatted name
-   */
   static _formatMapboxName(feature) {
     const context = feature.context || [];
     const placeName = feature.place_name || feature.text;
@@ -277,21 +240,12 @@ class Geocoder {
     return result;
   }
   
-  /**
-   * Get Mapbox API key from settings
-   * @returns {string|null} API key or null
-   */
   static _getMapboxApiKey() {
     // Can add setting for API key
     // For now return null to use only OSM
     return null;
   }
   
-  /**
-   * Create short name for slot
-   * @param {string} fullName - Full location name
-   * @returns {string} Short name
-   */
   static createShortName(fullName) {
     if (!fullName) return '';
     

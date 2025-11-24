@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Coordinate Extractor",
-  "version": "3.2.0",
+  "name": "MapsBridge Kit",
+  "version": "3.3.0",
   "description": "Fast coordinate extraction from map URLs. Universal parser with automatic location naming.",
   "icons": {
     "128": "image.png"

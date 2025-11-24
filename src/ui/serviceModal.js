@@ -1,9 +1,5 @@
 "use strict";
 
-/**
- * Service Modal Manager
- * Handles modal for service selection
- */
 class ServiceModal {
   
   constructor() {
@@ -29,9 +25,6 @@ class ServiceModal {
     ];
   }
   
-  /**
-   * Initialize modal
-   */
   async init() {
     this.serviceGrid = document.getElementById('service-grid');
     
@@ -53,9 +46,6 @@ class ServiceModal {
     this.setupShiftIndicator();
   }
   
-  /**
-   * Setup Shift key visual indicator for 3D Buildings Box
-   */
   setupShiftIndicator() {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Shift' || e.keyCode === 16 || e.shiftKey) {
@@ -80,9 +70,6 @@ class ServiceModal {
     });
   }
   
-  /**
-   * Update button names when shift is held
-   */
   updateButtonNames(shiftHeld) {
     const buttons = this.serviceGrid?.querySelectorAll('.service-btn');
     if (!buttons) return;
@@ -132,9 +119,6 @@ class ServiceModal {
     });
   }
   
-  /**
-   * Setup event listeners
-   */
   setupEventListeners() {
     const addCustomBtn = document.getElementById('add-custom-service');
     
@@ -143,10 +127,6 @@ class ServiceModal {
     }
   }
   
-  /**
-   * Get current coordinates
-   * Always gets fresh coordinates from current tab to avoid stale data
-   */
   async getCurrentCoordinates() {
     try {
       const app = window.appInstance;
@@ -184,9 +164,6 @@ class ServiceModal {
     }
   }
   
-  /**
-   * Render service buttons
-   */
   async renderServices() {
     if (!this.serviceGrid) return;
     
@@ -219,9 +196,6 @@ class ServiceModal {
     });
   }
   
-  /**
-   * Setup drag and drop for reordering services
-   */
   setupDragAndDrop() {
     const buttons = this.serviceGrid.querySelectorAll('.service-btn');
     
@@ -329,9 +303,6 @@ class ServiceModal {
     });
   }
   
-  /**
-   * Toggle service visibility (hide/show)
-   */
   toggleServiceVisibility(serviceName) {
     if (this.hiddenServices.has(serviceName)) {
       this.hiddenServices.delete(serviceName);
@@ -342,12 +313,9 @@ class ServiceModal {
     this.renderServices();
   }
   
-  /**
-   * Get visible services order
-   */
   getVisibleServicesOrder() {
     try {
-      const saved = localStorage.getItem('coordinate_extractor_services_order');
+      const saved = localStorage.getItem('mapsbridge_kit_services_order') || localStorage.getItem('coordinate_extractor_services_order');
       if (saved) {
         const order = JSON.parse(saved);
         // Filter out hidden services
@@ -365,34 +333,25 @@ class ServiceModal {
     return allServices.filter(name => !this.hiddenServices.has(name));
   }
   
-  /**
-   * Save visible services order
-   */
   saveServicesOrder(order) {
     try {
-      localStorage.setItem('coordinate_extractor_services_order', JSON.stringify(order));
+      localStorage.setItem('mapsbridge_kit_services_order', JSON.stringify(order));
     } catch (error) {
       console.error('Error saving services order:', error);
     }
   }
   
-  /**
-   * Save hidden services
-   */
   saveHiddenServices() {
     try {
-      localStorage.setItem('coordinate_extractor_hidden_services', JSON.stringify(Array.from(this.hiddenServices)));
+      localStorage.setItem('mapsbridge_kit_hidden_services', JSON.stringify(Array.from(this.hiddenServices)));
     } catch (error) {
       console.error('Error saving hidden services:', error);
     }
   }
   
-  /**
-   * Load hidden services
-   */
   loadHiddenServices() {
     try {
-      const saved = localStorage.getItem('coordinate_extractor_hidden_services');
+      const saved = localStorage.getItem('mapsbridge_kit_hidden_services') || localStorage.getItem('coordinate_extractor_hidden_services');
       if (saved) {
         this.hiddenServices = new Set(JSON.parse(saved));
       }
@@ -402,9 +361,6 @@ class ServiceModal {
     }
   }
   
-  /**
-   * Create service button
-   */
   createServiceButton(service, isCustom = false, index = null) {
     const btn = document.createElement('button');
     btn.className = 'service-btn';
@@ -563,9 +519,6 @@ class ServiceModal {
     return btn;
   }
   
-  /**
-   * Open service in new tab
-   */
   async openService(service, shiftKey = false) {
     // Always get fresh coordinates before opening service to avoid stale data
     const freshCoords = await this.getCurrentCoordinates();
@@ -617,9 +570,6 @@ class ServiceModal {
     }
   }
   
-  /**
-   * Get service color from URL theme
-   */
   async getServiceColor(urlTemplate) {
     try {
       // Extract domain from URL template
@@ -674,9 +624,6 @@ class ServiceModal {
     }
   }
   
-  /**
-   * Build service URL from template
-   */
   buildServiceUrl(template, coords) {
     try {
       if (!coords || !coords.lat || !coords.lon) {
@@ -726,9 +673,6 @@ class ServiceModal {
     }
   }
   
-  /**
-   * Prompt user to add custom service
-   */
   promptAddCustomService() {
     // Create modal
     const modal = document.createElement('div');
@@ -820,9 +764,6 @@ class ServiceModal {
     });
   }
   
-  /**
-   * Detect URL template from example URL
-   */
   detectUrlTemplate(url) {
     // Try to detect common patterns
     const patterns = [
@@ -872,9 +813,6 @@ class ServiceModal {
     return template;
   }
   
-  /**
-   * Delete custom service
-   */
   deleteCustomService(name) {
     if (confirm(`Delete "${name}"?`)) {
       this.customServices = this.customServices.filter(s => s.name !== name);
@@ -884,12 +822,9 @@ class ServiceModal {
     }
   }
   
-  /**
-   * Load custom services from storage
-   */
   loadCustomServices() {
     try {
-      const saved = localStorage.getItem('coordinate_extractor_custom_services');
+      const saved = localStorage.getItem('mapsbridge_kit_custom_services') || localStorage.getItem('coordinate_extractor_custom_services');
       if (saved) {
         this.customServices = JSON.parse(saved);
       }
@@ -899,20 +834,14 @@ class ServiceModal {
     }
   }
   
-  /**
-   * Save custom services to storage
-   */
   saveCustomServices() {
     try {
-      localStorage.setItem('coordinate_extractor_custom_services', JSON.stringify(this.customServices));
+      localStorage.setItem('mapsbridge_kit_custom_services', JSON.stringify(this.customServices));
     } catch (error) {
       console.error('Error saving custom services:', error);
     }
   }
   
-  /**
-   * Setup keyboard shortcuts for services (1-5)
-   */
   setupKeyboardShortcuts() {
     document.addEventListener('keydown', async (e) => {
       // Only work when popup is open and not in input fields

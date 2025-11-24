@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Coordinate Extractor</title>
+  <title>MapsBridge Kit</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,7 +12,7 @@
     <header class="app-header">
       <div class="header-content">
         <div class="app-title">
-          <h1>Coordinate Extractor</h1>
+          <h1>MapsBridge Kit</h1>
         </div>
         <div class="header-info">
           <span class="hotkey-badge">Cmd+Shift+E</span>
@@ -24,20 +24,27 @@
     <div class="app-body">
       <!-- Left: Coordinates -->
       <div class="coords-panel">
-        <!-- Current coordinates -->
+        <!-- Console -->
         <div class="panel-section">
           <div class="section-header">
-            <h2 class="section-title">Current Location</h2>
+            <h2 class="section-title">Console</h2>
+            <button id="clear-console" class="btn-secondary btn-compact" title="Clear console">
+              Clear
+            </button>
           </div>
           <div class="current-coords">
             <div id="log-output" class="log-container"></div>
           </div>
         </div>
 
-        <!-- CLI Output -->
+        <!-- Format Output -->
         <div class="panel-section">
           <div class="section-header">
-            <h2 class="section-title">CLI Format</h2>
+            <button id="format-toggle" class="format-toggle-btn" title="Toggle between CLI and URL format">
+              <span class="format-label">CLI Format</span>
+              <span class="format-switch">↔</span>
+              <span class="button-hotkey">r</span>
+            </button>
           </div>
           <div class="cli-group">
             <textarea id="cli-output" readonly rows="1" placeholder="coordinates will appear here..."></textarea>
@@ -111,6 +118,7 @@
   <!-- Core modules -->
   <script src="src/parsers/coordinateParser.js"></script>
   <script src="src/utils/cliParser.js"></script>
+  <script src="src/utils/urlFormatParser.js"></script>
   <script src="src/utils/geocoder.js"></script>
   <script src="src/utils/goButtonMessages.js"></script>
   

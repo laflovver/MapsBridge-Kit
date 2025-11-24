@@ -1,100 +1,51 @@
 "use strict";
 
-/**
- * @typedef {Object} Coordinates
- * @property {number} lat - Latitude
- * @property {number} lon - Longitude  
- * @property {number} zoom - Zoom level
- * @property {number} bearing - Bearing (optional)
- * @property {number} pitch - Pitch (optional)
- * 
- * Version: 2.1 - Simplified universal parser
- */
-
-/**
- * Precompiled regular expressions for better performance
- */
 const REGEX_PATTERNS = {
-  // Path format: /@lat,lon,zoom
   pathFormat: /@(-?\d+\.?\d*),(-?\d+\.?\d*),(\d+\.?\d*)([a-z])?/,
-  
-  // Hash formats
-  hashMapFormat: /#map=(\d+\.?\d*)\/(-?\d+\.?\d*)\/(-?\d+\.?\d*)/,  // #map=zoom/lat/lon
-  hashSlashFormat: /#(\d+\.?\d*)\/(-?\d+\.?\d*)\/(-?\d+\.?\d*)(?:\/(-?\d+\.?\d*))?(?:\/(-?\d+\.?\d*))?/,  // #zoom/lat/lon or #zoom/lat/lon/bearing/pitch
-  
-  // Query parameters
+  hashMapFormat: /#map=(\d+\.?\d*)\/(-?\d+\.?\d*)\/(-?\d+\.?\d*)/,
+  hashSlashFormat: /#(\d+\.?\d*)\/(-?\d+\.?\d*)\/(-?\d+\.?\d*)(?:\/(-?\d+\.?\d*))?(?:\/(-?\d+\.?\d*))?/,
   latLonParams: /[?&#](?:lat|latitude)=(-?\d+\.?\d*)[&]?.*?(?:lon|lng|longitude)=(-?\d+\.?\d*)/i,
   lonLatParams: /[?&#](?:lon|lng|longitude)=(-?\d+\.?\d*)[&]?.*?(?:lat|latitude)=(-?\d+\.?\d*)/i,
-  
-  // Center parameter (Mapbox style)
   centerParam: /center=([^&]+)/,
-  
-  // Special formats
-  llParam: /[?&]ll=(-?\d+\.?\d*)[,~%2C](-?\d+\.?\d*)/i,  // ll=lon,lat or ll=lon~lat
-  cpParam: /[?&]cp=(-?\d+\.?\d*)[~%7E](-?\d+\.?\d*)/i,   // cp=lat~lon (Bing)
-  
-  // Mapbox Console Directions Debug: map=lon,lat,zoom
+  llParam: /[?&]ll=(-?\d+\.?\d*)[,~%2C](-?\d+\.?\d*)/i,
+  cpParam: /[?&]cp=(-?\d+\.?\d*)[~%7E](-?\d+\.?\d*)/i,
   mapboxConsoleMap: /[&#]map=(-?\d+\.?\d*),(-?\d+\.?\d*),([\d\.]+)([z]?)/,
-  
-  // Mapbox Console Directions Debug: route=lon1,lat1;lon2,lat2;...
   mapboxConsoleRoute: /[&#]route=([^&]+)/,
-  
-  // Satellites.pro format: #lat,lon,zoom
   satellitesProFormat: /#(\d+\.?\d*),(\d+\.?\d*),(\d+)/,
-  
-  // Mapillary format: ?lat=X&lng=Y&z=Z
   mapillaryFormat: /[?&]lat=(-?\d+\.?\d*)[&]?.*?[?&]lng=(-?\d+\.?\d*)/i,
-  
-  // Planet.com format: /mosaic/MOSAIC_NAME/center/lon/lat/zoom
   planetFormat: /\/mosaic\/[^\/]+\/center\/(-?\d+\.?\d*)\/(-?\d+\.?\d*)\/(\d+)/,
-  
-  // Zoom parameter
   zoomParam: /[?&](?:z|zoom|lvl)=(\d+)/i,
 };
 
-/**
- * Main Coordinate Parser class
- */
 class CoordinateParser {
   
-  /**
-   * Extract coordinates from URL
-   * @param {string} url - URL to parse
-   * @returns {Coordinates|null} Extracted coordinates or null
-   */
   static extractFromUrl(url) {
     try {
       const urlObj = new URL(url);
       const fullUrl = urlObj.href;
       
-      // Try different extraction methods in order
       let coords = null;
       
-      // 1. Try path format (/@lat,lon,zoom)
       coords = this._extractFromPath(fullUrl);
       if (coords && this._validateCoordinates(coords)) {
         return this._normalizeCoordinates(coords);
       }
       
-      // 1.5. Try Planet.com format
       coords = this._extractFromPlanet(fullUrl);
       if (coords && this._validateCoordinates(coords)) {
         return this._normalizeCoordinates(coords);
       }
       
-      // 2. Try hash formats
       coords = this._extractFromHash(urlObj);
       if (coords && this._validateCoordinates(coords)) {
         return this._normalizeCoordinates(coords);
       }
       
-      // 3. Try query parameters
       coords = this._extractFromQueryParams(urlObj);
       if (coords && this._validateCoordinates(coords)) {
         return this._normalizeCoordinates(coords);
       }
       
-      // 4. Try special formats (ll, cp, center)
       coords = this._extractFromSpecialParams(urlObj, fullUrl);
       if (coords && this._validateCoordinates(coords)) {
         return this._normalizeCoordinates(coords);
@@ -107,9 +58,6 @@ class CoordinateParser {
     }
   }
   
-  /**
-   * Extract from path format (/@lat,lon,zoom)
-   */
   static _extractFromPath(url) {
     const match = url.match(REGEX_PATTERNS.pathFormat);
     if (!match) return null;
@@ -123,9 +71,6 @@ class CoordinateParser {
     };
   }
   
-  /**
-   * Extract from Planet.com format
-   */
   static _extractFromPlanet(url) {
     const match = url.match(REGEX_PATTERNS.planetFormat);
     if (!match) return null;
@@ -137,14 +82,10 @@ class CoordinateParser {
     };
   }
   
-  /**
-   * Extract from hash formats
-   */
   static _extractFromHash(urlObj) {
     const hash = urlObj.hash;
     if (!hash) return null;
     
-    // Try #map=zoom/lat/lon
     let match = hash.match(REGEX_PATTERNS.hashMapFormat);
     if (match) {
       return {
@@ -156,7 +97,6 @@ class CoordinateParser {
       };
     }
     
-    // Try #zoom/lat/lon or #zoom/lat/lon/bearing/pitch
     match = hash.match(REGEX_PATTERNS.hashSlashFormat);
     if (match) {
       const result = {
@@ -165,7 +105,6 @@ class CoordinateParser {
         lon: parseFloat(match[3])
       };
       
-      // Include bearing and pitch if they are present in URL (including 0)
       if (match[4] !== undefined && match[4] !== null && match[4] !== '') {
         result.bearing = parseFloat(match[4]);
       }
@@ -176,7 +115,6 @@ class CoordinateParser {
       return result;
     }
     
-    // Try center parameter in hash
     if (hash.includes('center=')) {
       match = hash.match(REGEX_PATTERNS.centerParam);
       if (match) {
@@ -187,13 +125,10 @@ class CoordinateParser {
         });
         
         if (parts.length >= 3) {
-          // Format could be zoom/lon/lat or lon/lat/zoom
           const p0 = parseFloat(parts[0]);
           const p1 = parseFloat(parts[1]);
           const p2 = parseFloat(parts[2]);
           
-          // Check if first value looks like zoom (0-25) and second looks like lon (-180 to 180)
-          // This indicates zoom/lon/lat format
           if (p0 >= 0 && p0 <= 25 && p1 >= -180 && p1 <= 180 && p2 >= -90 && p2 <= 90) {
             return {
               zoom: p0,
@@ -203,7 +138,6 @@ class CoordinateParser {
               pitch: parts[4] ? parseFloat(parts[4]) : 0
             };
           }
-          // Otherwise, try lon/lat/zoom format (Mapbox Sites format)
           if (p0 >= -180 && p0 <= 180 && p1 >= -90 && p1 <= 90) {
             return {
               lon: p0,
@@ -220,13 +154,9 @@ class CoordinateParser {
     return null;
   }
   
-  /**
-   * Extract from query parameters
-   */
   static _extractFromQueryParams(urlObj) {
     const url = urlObj.href;
     
-    // Try lat/lon parameters
     let match = url.match(REGEX_PATTERNS.latLonParams);
     if (match) {
       const result = {
@@ -240,7 +170,6 @@ class CoordinateParser {
       return result;
     }
     
-    // Try lon/lat order
     match = url.match(REGEX_PATTERNS.lonLatParams);
     if (match) {
       const result = {
@@ -257,17 +186,12 @@ class CoordinateParser {
     return null;
   }
   
-  /**
-   * Extract from special parameter formats
-   */
   static _extractFromSpecialParams(urlObj, fullUrl) {
-    // Try Mapbox Console Directions Debug: calculate average point from route
     let match = fullUrl.match(REGEX_PATTERNS.mapboxConsoleRoute);
     if (match) {
       const routeValue = match[1];
       const points = routeValue.split(';');
       
-      // Parse all points and calculate average
       const coords = points.map(point => {
         const parts = point.split(',');
         if (parts.length >= 2) {
@@ -280,12 +204,10 @@ class CoordinateParser {
       }).filter(c => c !== null);
       
       if (coords.length > 0) {
-        // Calculate average coordinates
         const avgLon = coords.reduce((sum, c) => sum + c.lon, 0) / coords.length;
         const avgLat = coords.reduce((sum, c) => sum + c.lat, 0) / coords.length;
         
-        // Try to get zoom from map parameter
-        let zoom = 15; // default
+        let zoom = 15;
         const mapMatch = fullUrl.match(REGEX_PATTERNS.mapboxConsoleMap);
         if (mapMatch) {
           zoom = parseFloat(mapMatch[3]);
@@ -299,7 +221,6 @@ class CoordinateParser {
       }
     }
     
-    // Try Mapbox Console Directions Debug format: map=lon,lat,zoom (fallback)
     match = fullUrl.match(REGEX_PATTERNS.mapboxConsoleMap);
     if (match) {
       return {
@@ -372,17 +293,10 @@ class CoordinateParser {
         });
         
         if (parts.length >= 3) {
-          // Format could be zoom/lon/lat or lon/lat/zoom
-          // Try to determine by value ranges:
-          // - zoom is typically 0-25
-          // - lat is -90 to 90
-          // - lon is -180 to 180
           const p0 = parseFloat(parts[0]);
           const p1 = parseFloat(parts[1]);
           const p2 = parseFloat(parts[2]);
           
-          // Check if first value looks like zoom (0-25) and second looks like lon (-180 to 180)
-          // This indicates zoom/lon/lat format
           if (p0 >= 0 && p0 <= 25 && p1 >= -180 && p1 <= 180 && p2 >= -90 && p2 <= 90) {
             return {
               zoom: p0,
@@ -392,7 +306,6 @@ class CoordinateParser {
               pitch: parts[4] ? parseFloat(parts[4]) : 0
             };
           }
-          // Otherwise, try lon/lat/zoom format (Mapbox Sites format)
           if (p0 >= -180 && p0 <= 180 && p1 >= -90 && p1 <= 90) {
             return {
               lon: p0,
@@ -403,7 +316,6 @@ class CoordinateParser {
             };
           }
         } else if (parts.length >= 2) {
-          // Fallback: assume lon/lat format
           return {
             lon: parseFloat(parts[0]),
             lat: parseFloat(parts[1]),
@@ -416,12 +328,12 @@ class CoordinateParser {
     return null;
   }
 
-  /**
-   * Parse coordinates from CLI string
-   * @param {string} cliString - String in format --lon X --lat Y --zoom Z
-   * @returns {Coordinates|null} Extracted coordinates or null
-   */
   static parseFromCli(cliString) {
+    if (typeof window !== 'undefined' && window.CliParser) {
+      const result = window.CliParser.parse(cliString);
+      return result ? this._normalizeCoordinates(result) : null;
+    }
+    
     const parts = cliString.split(/\s+/);
     const result = {};
     
@@ -439,31 +351,59 @@ class CoordinateParser {
     return (result.lon && result.lat) ? this._normalizeCoordinates(result) : null;
   }
 
-  /**
-   * Format coordinates to CLI string
-   * @param {Coordinates} coords - Coordinates to format
-   * @returns {string} CLI string
-   */
   static formatToCli(coords) {
+    if (typeof window !== 'undefined' && window.CliParser) {
+      return window.CliParser.format(coords);
+    }
+    
     if (!coords || typeof coords !== 'object') {
       return '';
     }
 
     const parts = [];
-    
     if (typeof coords.lon === 'number') parts.push(`--lon ${coords.lon}`);
     if (typeof coords.lat === 'number') parts.push(`--lat ${coords.lat}`);
     if (typeof coords.zoom === 'number') parts.push(`--zoom ${coords.zoom}`);
-    // Only add pitch and bearing if they are non-zero
     if (typeof coords.pitch === 'number' && coords.pitch !== 0) parts.push(`--pitch ${coords.pitch}`);
     if (typeof coords.bearing === 'number' && coords.bearing !== 0) parts.push(`--bearing ${coords.bearing}`);
     
     return parts.join(' ');
   }
 
-  /**
-   * Validate coordinates
-   */
+  static parseFromUrlFormat(urlString) {
+    if (typeof window !== 'undefined' && window.UrlFormatParser) {
+      const result = window.UrlFormatParser.parse(urlString);
+      return result ? this._normalizeCoordinates(result) : null;
+    }
+    return null;
+  }
+
+  static formatToUrlFormat(coords) {
+    if (typeof window !== 'undefined' && window.UrlFormatParser) {
+      return window.UrlFormatParser.format(coords);
+    }
+    return '';
+  }
+
+  static isUrlFormat(str) {
+    if (typeof window !== 'undefined' && window.UrlFormatParser) {
+      return window.UrlFormatParser.isUrlFormat(str);
+    }
+    return false;
+  }
+
+  static parseFromAnyFormat(str) {
+    if (!str || typeof str !== 'string') {
+      return null;
+    }
+
+    if (this.isUrlFormat(str)) {
+      return this.parseFromUrlFormat(str);
+    }
+
+    return this.parseFromCli(str);
+  }
+
   static _validateCoordinates(coords) {
     return coords && 
            typeof coords.lat === 'number' && 
@@ -473,9 +413,6 @@ class CoordinateParser {
            !isNaN(coords.lat) && !isNaN(coords.lon);
   }
 
-  /**
-   * Normalize coordinates (ensure all fields are present)
-   */
   static _normalizeCoordinates(coords) {
     const normalized = {
       lat: coords.lat || 0,
@@ -483,7 +420,6 @@ class CoordinateParser {
       zoom: coords.zoom || 0
     };
     
-    // Add bearing and pitch if they are defined (including 0, which is a valid value)
     if (coords.bearing !== undefined && coords.bearing !== null) {
       normalized.bearing = coords.bearing;
     }
@@ -495,14 +431,12 @@ class CoordinateParser {
   }
 }
 
-// Export for use in extension
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = CoordinateParser;
 } else {
   window.CoordinateParser = CoordinateParser;
 }
 
-// Also make it available globally for popup
 if (typeof window !== 'undefined') {
   window.CoordinateParser = CoordinateParser;
 }

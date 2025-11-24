@@ -1,14 +1,7 @@
 "use strict";
 
-/**
- * Manager for Chrome API and browser tabs
- */
 class BrowserManager {
   
-  /**
-   * Get active tab URL
-   * @returns {Promise<string|null>} Active tab URL or null
-   */
   static async getActiveTabUrl() {
     try {
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -19,11 +12,6 @@ class BrowserManager {
     }
   }
 
-  /**
-   * Update active tab URL with new coordinates
-   * @param {Object} coords - Coordinates to insert
-   * @returns {Promise<boolean>} Operation success
-   */
   static async updateActiveTabWithCoordinates(coords) {
     try {
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -85,10 +73,6 @@ class BrowserManager {
     }
   }
 
-  /**
-   * Open extension in new tab
-   * @returns {Promise<boolean>} Operation success  
-   */
   static async openExtensionInTab() {
     try {
       const popupUrl = chrome.runtime.getURL("popup.html");

@@ -1,15 +1,12 @@
 "use strict";
 
-/**
- * Main Coordinate Extractor application class
- * Coordinates all modules
- */
 class CoordinateExtractorApp {
   
   constructor() {
     this.activeSlotId = "saved-coords-0";
     this.hotkeysDisabled = false;
     this.clipboardCoords = null;
+    this.outputFormat = 'cli';
     
     this.slotIds = [
       "saved-coords-0",
@@ -21,9 +18,6 @@ class CoordinateExtractorApp {
     this.serviceModal = null;
   }
 
-  /**
-   * Initialize the application
-   */
   async init() {
     try {
       if (typeof UIComponents === 'undefined') {
@@ -31,6 +25,7 @@ class CoordinateExtractorApp {
       }
       UIComponents.init();
       
+      await this.loadSavedFormat();
       this.setupEventListeners();
       window.appInstance = this;
       
@@ -66,12 +61,6 @@ class CoordinateExtractorApp {
     }
   }
   
-  /**
-   * Get active slot coordinates
-   * For slots 1-3: returns coordinates from that slot
-   * For slot 0 or if active slot is empty: returns coordinates from slot 0 (fallback)
-   * @returns {Promise<Object|null>} Coordinates object or null if none found
-   */
   async getActiveSlotCoordinates() {
     if (this.activeSlotId && this.activeSlotId !== "saved-coords-0") {
       const slotIndex = parseInt(this.activeSlotId.split("-").pop(), 10);
@@ -90,9 +79,6 @@ class CoordinateExtractorApp {
   }
 
 
-  /**
-   * Load saved coordinates from storage
-   */
   async loadStoredCoordinates() {
     const slots = await StorageManager.getAllSlots();
     
@@ -118,9 +104,6 @@ class CoordinateExtractorApp {
     UIComponents.SlotRenderer.updateActiveIndicator();
   }
 
-  /**
-   * Handle keys in input fields
-   */
   handleInputFieldKeys(e) {
     if ((e.code === "Delete" || e.code === "Backspace") && this.activeSlotId) {
       e.preventDefault();
@@ -128,9 +111,6 @@ class CoordinateExtractorApp {
     }
   }
 
-  /**
-   * Handle global hotkeys
-   */
   handleGlobalHotkeys(e) {
     switch (e.code) {
       case "KeyC":
@@ -176,9 +156,6 @@ class CoordinateExtractorApp {
     }
   }
 
-  /**
-   * Copy coordinates to clipboard
-   */
   async handleCopyToClipboard() {
     try {
       const coords = await this.getActiveSlotCoordinates();
@@ -186,19 +163,17 @@ class CoordinateExtractorApp {
         return;
       }
 
-      const cliString = CoordinateParser.formatToCli(coords);
-      await navigator.clipboard.writeText(cliString);
+      const formattedString = this.outputFormat === 'url'
+        ? CoordinateParser.formatToUrlFormat(coords)
+        : CoordinateParser.formatToCli(coords);
+      
+      await navigator.clipboard.writeText(formattedString);
     } catch (error) {
       console.error("Clipboard error:", error);
     }
   }
 
 
-  /**
-   * Add location name to coordinates (runs in background)
-   * @param {Object} coords - Coordinates
-   * @param {number} slotIndex - Slot index
-   */
   async addLocationName(coords, slotIndex) {
     try {
       if (typeof Geocoder === 'undefined') {
@@ -284,10 +259,6 @@ class CoordinateExtractorApp {
   }
   
   
-  /**
-   * Navigation to coordinates
-   * Uses coordinates from active slot (via getActiveSlotCoordinates)
-   */
   async handleNavigateToCoordinates() {
     const coords = await this.getActiveSlotCoordinates();
     if (!coords || !coords.lat || !coords.lon) {
@@ -304,24 +275,15 @@ class CoordinateExtractorApp {
     }
   }
 
-  /**
-   * Slot editing
-   */
   handleEditSlot() {
     this.editActiveSlotLabel();
   }
 
-  /**
-   * Slot selection
-   */
   selectSlot(slotIndex) {
     this.activeSlotId = `saved-coords-${slotIndex}`;
     this.updateSlotSelection();
   }
 
-  /**
-   * Clear active slot
-   */
   async clearActiveSlot() {
     if (!this.activeSlotId) {
       console.log('No active slot to clear');
@@ -334,17 +296,10 @@ class CoordinateExtractorApp {
     this.refreshUI();
   }
 
-  /**
-   * Get active slot index
-   * @returns {number} Slot index (0-3)
-   */
   getActiveSlotIndex() {
     return parseInt(this.activeSlotId.split('-').pop(), 10);
   }
 
-  /**
-   * Update slot visual selection
-   */
   updateSlotSelection() {
     document.querySelectorAll('.saved-slot-item').forEach(item => {
       item.classList.remove('selected-saved');
@@ -356,11 +311,6 @@ class CoordinateExtractorApp {
     }
   }
 
-  /**
-   * Parse CLI string to coordinates object
-   * @param {string} cliString - CLI formatted string
-   * @returns {Object|null} Coordinates object or null if parsing failed
-   */
   parseCLIString(cliString) {
     if (typeof window !== 'undefined' && window.CliParser) {
       return window.CliParser.parse(cliString);
@@ -380,18 +330,12 @@ class CoordinateExtractorApp {
     return Object.keys(result).length > 0 ? result : null;
   }
 
-  /**
-   * Refresh UI by reloading stored coordinates
-   */
   refreshUI() {
     this.loadStoredCoordinates().catch(err => {
       console.error("Error refreshing UI:", err);
     });
   }
 
-  /**
-   * Extract coordinates from active tab URL
-   */
   async extractCurrentTabCoordinates() {
     const currentUrl = await BrowserManager.getActiveTabUrl();
     
@@ -400,16 +344,18 @@ class CoordinateExtractorApp {
       return;
     }
 
-    const coords = CoordinateParser.extractFromUrl(currentUrl);
+      const coords = CoordinateParser.extractFromUrl(currentUrl);
     
     if (coords) {
       await StorageManager.setSlot(0, { ...coords, name: "", labelColor: "" });
-      UIComponents.CoordinateDisplay.display(coords);
+      UIComponents.CoordinateDisplay.display(coords, this.outputFormat);
       this.clipboardCoords = coords;
       const slot0Element = document.getElementById("saved-coords-0");
       if (slot0Element) {
-        const cliString = CoordinateParser.formatToCli(coords);
-        UIComponents.SlotRenderer.renderContent(slot0Element, cliString);
+        const formattedString = this.outputFormat === 'url'
+          ? CoordinateParser.formatToUrlFormat(coords)
+          : CoordinateParser.formatToCli(coords);
+        UIComponents.SlotRenderer.renderContent(slot0Element, formattedString);
       }
       
       UIComponents.Logger.log(`Coordinates extracted: ${coords.lat}, ${coords.lon}, zoom: ${coords.zoom}`, "success");
@@ -422,13 +368,12 @@ class CoordinateExtractorApp {
     }
   }
 
-  /**
-   * Setup event handlers for main buttons
-   */
   setupEventListeners() {
     this.setupCopyButton();
     this.setupPasteButton();
     this.setupNavigateButton();
+    this.setupFormatToggle();
+    this.setupClearConsole();
     this.setupKeyboardShortcuts();
   }
 
@@ -469,9 +414,14 @@ class CoordinateExtractorApp {
       const text = await UIComponents.Clipboard.read();
       if (!text) return;
 
-      const coords = CoordinateParser.parseFromCli(text);
+      const coords = CoordinateParser.parseFromAnyFormat(text);
       if (coords) {
-        const formatted = CoordinateParser.formatToCli(coords);
+        const formatted = this.outputFormat === 'url'
+          ? CoordinateParser.formatToUrlFormat(coords)
+          : CoordinateParser.formatToCli(coords);
+        
+        UIComponents.CoordinateDisplay.display(coords, this.outputFormat);
+        this.clipboardCoords = coords;
         
         if (this.activeSlotId && this.activeSlotId !== "saved-coords-0") {
           const slotIndex = parseInt(this.activeSlotId.split("-").pop(), 10);
@@ -503,7 +453,6 @@ class CoordinateExtractorApp {
           }
         }
         
-        this.clipboardCoords = coords;
         UIComponents.Logger.log("Coordinates pasted from clipboard", "success");
       } else {
         UIComponents.Logger.log("Failed to parse coordinates", "error");
@@ -608,6 +557,84 @@ class CoordinateExtractorApp {
     });
   }
 
+  async loadSavedFormat() {
+    try {
+      const result = await chrome.storage.local.get({ outputFormat: 'cli' });
+      this.outputFormat = result.outputFormat || 'cli';
+      setTimeout(() => this.updateFormatUI(), 0);
+    } catch (error) {
+      console.error("Error loading saved format:", error);
+      this.outputFormat = 'cli';
+    }
+  }
+
+  async saveFormat() {
+    try {
+      await chrome.storage.local.set({ outputFormat: this.outputFormat });
+    } catch (error) {
+      console.error("Error saving format:", error);
+    }
+  }
+
+  updateFormatUI() {
+    const formatToggle = document.getElementById("format-toggle");
+    if (!formatToggle) return;
+
+    const formatLabel = formatToggle.querySelector(".format-label");
+    if (formatLabel) {
+      formatLabel.textContent = this.outputFormat === 'cli' ? 'CLI Format' : 'URL Format';
+    }
+
+    if (this.clipboardCoords) {
+      UIComponents.CoordinateDisplay.display(this.clipboardCoords, this.outputFormat);
+    }
+
+    const slot0Element = document.getElementById("saved-coords-0");
+    if (slot0Element && this.clipboardCoords) {
+      const formattedString = this.outputFormat === 'url'
+        ? CoordinateParser.formatToUrlFormat(this.clipboardCoords)
+        : CoordinateParser.formatToCli(this.clipboardCoords);
+      UIComponents.SlotRenderer.renderContent(slot0Element, formattedString);
+    }
+  }
+
+  toggleFormat() {
+    this.outputFormat = this.outputFormat === 'cli' ? 'url' : 'cli';
+    this.saveFormat();
+    this.updateFormatUI();
+    
+    const formatToggle = document.getElementById("format-toggle");
+    if (formatToggle) {
+      UIComponents.Utils.animateButton(formatToggle);
+    }
+  }
+
+  setupFormatToggle() {
+    const formatToggle = document.getElementById("format-toggle");
+    if (!formatToggle) return;
+
+    formatToggle.addEventListener("click", () => {
+      this.toggleFormat();
+    });
+  }
+
+  setupClearConsole() {
+    const clearBtn = document.getElementById("clear-console");
+    if (!clearBtn) return;
+
+    clearBtn.addEventListener("click", () => {
+      UIComponents.Utils.animateButton(clearBtn);
+      const logContainer = document.getElementById("log-output");
+      if (logContainer) {
+        logContainer.innerHTML = '';
+        if (UIComponents.Logger._lastMessages) {
+          UIComponents.Logger._lastMessages = [];
+        }
+        UIComponents.Logger.log("Console cleared", "info");
+      }
+    });
+  }
+
   setupKeyboardShortcuts() {
     document.addEventListener("keydown", (e) => {
       if (this.hotkeysDisabled) return;
@@ -637,6 +664,11 @@ class CoordinateExtractorApp {
           e.preventDefault();
           this.editActiveSlotLabel();
           break;
+
+        case "KeyR":
+          e.preventDefault();
+          this.toggleFormat();
+          break;
           
         case "Digit1":
         case "Digit2":
@@ -652,9 +684,6 @@ class CoordinateExtractorApp {
     });
   }
 
-  /**
-   * Setup event handlers for coordinate slots
-   */
   attachSlotEventListeners() {
     this.slotIds.forEach((innerId, index) => {
       const inner = document.getElementById(innerId);
@@ -678,10 +707,6 @@ class CoordinateExtractorApp {
   }
 
 
-  /**
-   * Clear slot by index
-   * @param {number} slotIndex - Slot index to clear
-   */
   async clearSlot(slotIndex) {
     await StorageManager.clearSlot(slotIndex);
     
@@ -693,9 +718,6 @@ class CoordinateExtractorApp {
     UIComponents.Logger.log(`Slot ${slotIndex} cleared`, "info");
   }
 
-  /**
-   * Edit active slot label
-   */
   editActiveSlotLabel() {
     const activeSlot = document.querySelector(".saved-slot-item.selected-saved");
     if (activeSlot && activeSlot.id !== "slot-saved-coords-0") {
@@ -706,9 +728,6 @@ class CoordinateExtractorApp {
     }
   }
 
-  /**
-   * Setup slot label editing functionality
-   */
   attachEditFunctionality() {
     // Add hotkey handler for editing
     document.addEventListener("keydown", (e) => {
@@ -732,11 +751,6 @@ class CoordinateExtractorApp {
     });
   }
 
-  /**
-   * Start slot label editing process
-   * @param {HTMLElement} btn - Edit button
-   * @param {HTMLElement} slot - Slot element
-   */
   startEditingSlotLabel(btn, slot) {
     if (!slot || slot.querySelector(".label-input")) return;
 
@@ -823,9 +837,6 @@ class CoordinateExtractorApp {
     input.addEventListener("blur", finishEditing);
   }
 
-  /**
-   * Setup snap scrolling for slots
-   */
   setupScrollSnapping() {
     document.querySelectorAll(".saved-slot-item .slot-inner").forEach((inner) => {
       inner.addEventListener("scroll", () => {

@@ -1,9 +1,32 @@
 # Changelog
 
-All notable changes to Coordinate Extractor will be documented in this file.
+All notable changes to MapsBridge Kit will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [3.3.0] - 2024-12-XX
+
+### Added
+- **Dual format support**: Switch between CLI and URL coordinate formats
+  - **CLI Format**: `--lon X --lat Y --zoom Z --bearing B --pitch P`
+  - **URL Format**: `#zoom/lat/lon/bearing/pitch`
+- **Format toggle button**: Click the format header to switch between CLI and URL formats
+- **Format persistence**: Your preferred format is automatically saved and restored between sessions
+- **Hotkey for format switching**: Press **R** to quickly toggle between formats
+- **Automatic format detection**: When pasting, the extension automatically detects whether coordinates are in CLI or URL format
+- **Console panel improvements**: Renamed "Current Location" to "Console" with clear button functionality
+- **Separated parsers**: CLI and URL format parsers are now in separate files for better code organization
+
+### Changed
+- Improved coordinate display: Format is consistently applied across all coordinate displays
+- Better code organization: Separated CLI and URL format parsing into dedicated modules
+- Console panel: Enhanced with clear functionality and better naming
+
+### Technical
+- Added `urlFormatParser.js` for URL format parsing
+- Refactored `coordinateParser.js` to use separate format parsers
+- Improved format switching logic with state persistence
 
 ## [3.2.0] - 2024-12-XX
 
@@ -96,12 +119,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Popup interface for coordinate display
 
 ### Changed
-- Initial implementation of coordinate extractor
+- Initial implementation of MapsBridge Kit
 
 ## [1.0] - 2025-03-XX
 
 ### Added
-- **Initial release**: First version of Coordinate Extractor
+- **Initial release**: First version of MapsBridge Kit
 - Basic coordinate extraction from map URLs
 - Simple UI for displaying coordinates
 - Chrome extension manifest setup
@@ -110,6 +133,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **v3.3.0** - Dual format support (CLI/URL), format persistence, format toggle hotkey
 - **v3.2.0** - Alternative service URLs, improved coordinate preservation, enhanced logging
 - **v3.1.0** - Service navigation modal, hotkeys, visual improvements, icon animation
 - **v3.0.0** - Major refactoring, universal parser, geocoding, 4-slot system
