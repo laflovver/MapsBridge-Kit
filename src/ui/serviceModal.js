@@ -16,7 +16,7 @@ class ServiceModal {
       { name: 'Labs HD Roads', urlTemplate: 'https://labs.mapbox.com/hd-roads/?lightPreset=satellite#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', color: '#9C27B0', backgroundImage: 'https://labs.mapbox.com/favicon.ico', altUrlTemplate: 'https://labs.mapbox.com/hd-roads/?lightPreset=day&source=3dln#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', hasShiftModifier: true },
       { name: 'HD Roads Prod', urlTemplate: 'https://console.mapbox.com/studio/tilesets/mapbox.hd-road-v1-bounded/#{{zoom}}/{{lat}}/{{lon}}', color: '#00BCD4', backgroundImage: 'https://www.mapbox.com/favicon.ico', isTileset: true, altUrlTemplate: 'https://console.mapbox.com/studio/tilesets/mapbox.hd-road-v1-bounded-demo/#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}', hasShiftModifier: true },
       { name: '3DLN Demo Style', urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox-3dln/mbx-3d-line-navigation-demo-style.html?title=view&access_token=pk.eyJ1IjoibWFwYm94LTNkbG4iLCJhIjoiY200djloOGQ2MDBmNDJpc2J5OHVtdDVkNCJ9.-Lbyn-czRBlAxwl-yNWdTg&zoomwheel=true&fresh=true#{{zoom}}/{{lat}}/{{lon}}', color: '#E91E63', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
-      { name: 'Google Maps', urlTemplate: 'https://www.google.com/maps/@{{lat}},{{lon}},{{zoom}}z', color: '#4285F4', backgroundImage: 'https://www.google.com/favicon.ico', altUrlTemplate: 'https://earth.google.com/web/@{{lat}},{{lon}},{{zoom}}a,0y,0h,0t,0r', hasShiftModifier: true },
+      { name: 'Google Maps', urlTemplate: 'https://earth.google.com/web/@{{lat}},{{lon}},{{zoom}}a,0y,0h,0t,0r', color: '#4285F4', backgroundImage: 'https://www.google.com/favicon.ico', altUrlTemplate: 'https://www.google.com/maps/@{{lat}},{{lon}},{{zoom}}z', hasShiftModifier: true },
       { name: 'Direction Debug', urlTemplate: 'https://console.mapbox.com/directions-debug/#map={{lon}},{{lat}},{{zoom}}z', color: '#00BCD4', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
       { name: '3D Model Slots', urlTemplate: 'https://sites.mapbox.com/mbx-3dbuilding-tools-staging/#/model-slots/2022-10-10/map/?center={{zoom}}%2F{{lon}}%2F{{lat}}&jira_summary=&jira_status=&jira_issue_id=&jira_labels=&jira_fix_versions=&env=prod&city=&iso_3166_1_alpha3=&lights=day&colorization=', color: '#9C27B0', backgroundImage: 'https://www.mapbox.com/favicon.ico', altUrlTemplate: 'https://sites.mapbox.com/mbx-3dbuilding-tools-staging/#/footprint/?center={{zoom}}%2F{{lon}}%2F{{lat}}', hasShiftModifier: true },
       { name: 'OpenStreetMap', urlTemplate: 'https://www.openstreetmap.org/#map={{zoom}}/{{lat}}/{{lon}}', color: '#7EBC6F', backgroundImage: 'https://www.openstreetmap.org/favicon.ico' },
@@ -97,7 +97,7 @@ class ServiceModal {
       if (serviceName === 'Google Maps') {
         const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn)');
         if (nameSpan) {
-          nameSpan.textContent = shiftHeld ? 'Google Earth' : 'Google Maps';
+          nameSpan.textContent = shiftHeld ? 'Google Maps' : 'Google Earth';
         }
       }
       
