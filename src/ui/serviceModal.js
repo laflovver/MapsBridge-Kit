@@ -188,6 +188,9 @@ class ServiceModal {
     // Setup drag and drop
     this.setupDragAndDrop();
     
+    // Update button names to reflect correct default state (especially for Google Maps/Earth)
+    this.updateButtonNames(false);
+    
     // Load coordinates in background (non-blocking)
     this.getCurrentCoordinates().then(coords => {
       this.currentCoords = coords;
@@ -386,7 +389,11 @@ class ServiceModal {
     }
     
     const serviceName = document.createElement('span');
-    serviceName.textContent = service.name;
+    if (service.name === 'Google Maps') {
+      serviceName.textContent = 'Google Earth';
+    } else {
+      serviceName.textContent = service.name;
+    }
     serviceName.style.flex = '1';
     leftContent.appendChild(serviceName);
     
