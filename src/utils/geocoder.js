@@ -1,39 +1,130 @@
 "use strict";
 
+class RequestQueue {
+  constructor(minInterval = 1000) {
+    this.minInterval = minInterval;
+    this.lastRequestTime = 0;
+    this.queue = [];
+    this.processing = false;
+  }
+
+  async enqueue(requestFn) {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ requestFn, resolve, reject });
+      this.processQueue();
+    });
+  }
+
+  async processQueue() {
+    if (this.processing || this.queue.length === 0) return;
+    this.processing = true;
+
+    while (this.queue.length > 0) {
+      const now = Date.now();
+      const timeSinceLastRequest = now - this.lastRequestTime;
+
+      if (timeSinceLastRequest < this.minInterval) {
+        await this.sleep(this.minInterval - timeSinceLastRequest);
+      }
+
+      const { requestFn, resolve, reject } = this.queue.shift();
+      this.lastRequestTime = Date.now();
+
+      try {
+        const result = await requestFn();
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      }
+    }
+
+    this.processing = false;
+  }
+
+  sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
 class Geocoder {
-  
-  static async reverseGeocode(lat, lon) {
+
+  static _osmQueue = new RequestQueue(1000);
+
+  static getVersion() {
+    return chrome.runtime.getManifest().version;
+  }
+
+  static getUserAgent() {
+    return `MapsBridge-Kit/${this.getVersion()}`;
+  }
+
+  static async reverseGeocode(lat, lon, options = {}) {
+    const { signal, timeout = 10000 } = options;
+
     try {
-      // First try OpenStreetMap Nominatim (free)
-      const osmResult = await this._queryOSM(lat, lon);
+      // Create timeout controller if timeout specified
+      let timeoutId;
+      const timeoutController = new AbortController();
+
+      if (timeout > 0) {
+        timeoutId = setTimeout(() => timeoutController.abort(), timeout);
+      }
+
+      // Combine signals if both provided
+      let combinedSignal = signal;
+      if (signal && timeout > 0) {
+        // If both signal and timeout are provided, we need to handle both
+        combinedSignal = signal;
+        signal.addEventListener('abort', () => timeoutController.abort());
+      } else if (timeout > 0) {
+        combinedSignal = timeoutController.signal;
+      }
+
+      // First try OpenStreetMap Nominatim (free) - rate limited
+      const osmResult = await this._osmQueue.enqueue(() => this._queryOSM(lat, lon, combinedSignal));
+
+      // Clear timeout if request completed
+      if (timeoutId) clearTimeout(timeoutId);
+
       if (osmResult) {
         return osmResult;
       }
-      
+
       // If OSM didn't work, try Mapbox (requires API key)
-      const mapboxResult = await this._queryMapbox(lat, lon);
+      const mapboxResult = await this._queryMapbox(lat, lon, combinedSignal);
       if (mapboxResult) {
         return mapboxResult;
       }
-      
+
       return null;
     } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('Geocoding request aborted');
+        return null;
+      }
       console.error('Geocoding error:', error);
       return null;
     }
   }
   
-  static async _queryOSM(lat, lon) {
+  static async _queryOSM(lat, lon, signal = null) {
     try {
       // First try to find landmarks with high rating
       const poiUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&extratags=1&accept-language=en&namedetails=1&polygon_geojson=0`;
-      
-      const response = await fetch(poiUrl, {
+
+      const fetchOptions = {
         headers: {
-          'User-Agent': 'MapsBridge-Kit/3.3.0',
+          'User-Agent': this.getUserAgent(),
           'Accept-Language': 'en'
         }
-      });
+      };
+
+      // Add signal if provided
+      if (signal) {
+        fetchOptions.signal = signal;
+      }
+
+      const response = await fetch(poiUrl, fetchOptions);
       
       if (!response.ok) {
         throw new Error(`OSM API error: ${response.status}`);
@@ -62,21 +153,28 @@ class Geocoder {
     }
   }
   
-  static async _queryMapbox(lat, lon) {
+  static async _queryMapbox(lat, lon, signal = null) {
     try {
       // Mapbox API key required
       const apiKey = this._getMapboxApiKey();
       if (!apiKey) {
         return null;
       }
-      
+
       const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json?access_token=${apiKey}&types=place,locality,neighborhood,address&language=en`;
-      
-      const response = await fetch(url, {
+
+      const fetchOptions = {
         headers: {
           'Accept-Language': 'en'
         }
-      });
+      };
+
+      // Add signal if provided
+      if (signal) {
+        fetchOptions.signal = signal;
+      }
+
+      const response = await fetch(url, fetchOptions);
       
       if (!response.ok) {
         throw new Error(`Mapbox API error: ${response.status}`);

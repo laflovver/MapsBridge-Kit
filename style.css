@@ -1209,8 +1209,8 @@ body.shift-held .service-btn[data-service-name="Google Maps"].has-shift-modifier
   box-shadow: 0 0 12px 0 rgba(66, 133, 244, 0.4);
 }
 
-/* Footprint - purple (matches 3D Model Slots theme) */
-body.shift-held .service-btn[data-service-name="3D Model Slots"].has-shift-modifier {
+/* Shift modifier styling for services with alt URL */
+body.shift-held .service-btn.has-shift-modifier {
   background: #9C27B0;
   box-shadow: 0 0 12px 0 rgba(156, 39, 176, 0.4);
 }

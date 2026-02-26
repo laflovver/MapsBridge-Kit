@@ -1,9 +1,59 @@
 "use strict";
 
+class UndoStack {
+  constructor(maxSize = 10) {
+    this.maxSize = maxSize;
+    this.stack = [];
+    this.position = -1;
+  }
+
+  push(action) {
+    // Remove any actions after current position (redo history)
+    this.stack = this.stack.slice(0, this.position + 1);
+
+    // Add new action
+    this.stack.push(action);
+
+    // Maintain max size
+    if (this.stack.length > this.maxSize) {
+      this.stack.shift();
+    } else {
+      this.position++;
+    }
+  }
+
+  canUndo() {
+    return this.position >= 0;
+  }
+
+  canRedo() {
+    return this.position < this.stack.length - 1;
+  }
+
+  undo() {
+    if (!this.canUndo()) return null;
+    const action = this.stack[this.position];
+    this.position--;
+    return action;
+  }
+
+  redo() {
+    if (!this.canRedo()) return null;
+    this.position++;
+    return this.stack[this.position];
+  }
+
+  clear() {
+    this.stack = [];
+    this.position = -1;
+  }
+}
+
 class StorageManager {
-  
+
   static STORAGE_KEY = "recentCoordinates";
   static MAX_SLOTS = 4;
+  static _undoStack = new UndoStack(10);
 
   static async getAllSlots() {
     try {
@@ -30,15 +80,28 @@ class StorageManager {
     return slots[slotIndex];
   }
 
-  static async setSlot(slotIndex, slotData) {
+  static async setSlot(slotIndex, slotData, skipUndo = false) {
     if (slotIndex < 0 || slotIndex >= this.MAX_SLOTS) {
       throw new Error(`Invalid slot index: ${slotIndex}`);
     }
 
     try {
       const slots = await this.getAllSlots();
+      const previousData = slots[slotIndex];
+
+      // Record undo action (don't record for slot 0 which is auto-extracted)
+      if (!skipUndo && slotIndex > 0) {
+        this._undoStack.push({
+          type: 'setSlot',
+          slotIndex,
+          previousData,
+          newData: slotData,
+          timestamp: Date.now()
+        });
+      }
+
       slots[slotIndex] = slotData;
-      
+
       await chrome.storage.local.set({ [this.STORAGE_KEY]: slots });
       return true;
     } catch (error) {
@@ -132,6 +195,37 @@ class StorageManager {
         callback(changes[this.STORAGE_KEY].newValue || []);
       }
     });
+  }
+
+  // Undo/Redo functionality
+  static async undo() {
+    const action = this._undoStack.undo();
+    if (!action) return false;
+
+    if (action.type === 'setSlot') {
+      await this.setSlot(action.slotIndex, action.previousData, true);
+      return true;
+    }
+    return false;
+  }
+
+  static async redo() {
+    const action = this._undoStack.redo();
+    if (!action) return false;
+
+    if (action.type === 'setSlot') {
+      await this.setSlot(action.slotIndex, action.newData, true);
+      return true;
+    }
+    return false;
+  }
+
+  static canUndo() {
+    return this._undoStack.canUndo();
+  }
+
+  static canRedo() {
+    return this._undoStack.canRedo();
   }
 }
 

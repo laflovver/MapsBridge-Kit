@@ -1,5 +1,68 @@
 "use strict";
 
+class ServiceValidator {
+  static ALLOWED_PROTOCOLS = ['https:', 'http:'];
+  static REQUIRED_PLACEHOLDERS = ['{{lat}}', '{{lon}}'];
+  static MAX_NAME_LENGTH = 50;
+  static MAX_URL_LENGTH = 2000;
+
+  static validateServiceName(name) {
+    if (!name || name.trim().length === 0) {
+      return { valid: false, error: 'Service name is required' };
+    }
+    if (name.length > this.MAX_NAME_LENGTH) {
+      return { valid: false, error: `Name must be less than ${this.MAX_NAME_LENGTH} characters` };
+    }
+    if (/<|>|script|javascript:/i.test(name)) {
+      return { valid: false, error: 'Name contains invalid characters' };
+    }
+    return { valid: true };
+  }
+
+  static validateServiceUrl(urlString) {
+    if (!urlString || urlString.trim().length === 0) {
+      return { valid: false, error: 'URL is required' };
+    }
+    if (urlString.length > this.MAX_URL_LENGTH) {
+      return { valid: false, error: 'URL is too long' };
+    }
+
+    const hasRequiredPlaceholders = this.REQUIRED_PLACEHOLDERS.every(
+      placeholder => urlString.includes(placeholder)
+    );
+    if (!hasRequiredPlaceholders) {
+      return { valid: false, error: 'URL must contain {{lat}} and {{lon}} placeholders' };
+    }
+
+    try {
+      const testUrl = urlString
+        .replace(/\{\{lat\}\}/g, '0')
+        .replace(/\{\{lon\}\}/g, '0')
+        .replace(/\{\{zoom\}\}/g, '15')
+        .replace(/\{\{bearing\}\}/g, '0')
+        .replace(/\{\{pitch\}\}/g, '0');
+
+      const url = new URL(testUrl);
+
+      if (!this.ALLOWED_PROTOCOLS.includes(url.protocol)) {
+        return { valid: false, error: 'Only HTTP and HTTPS URLs are allowed' };
+      }
+
+      if (url.protocol === 'javascript:' || url.protocol === 'data:') {
+        return { valid: false, error: 'JavaScript and data URLs are not allowed' };
+      }
+
+      return { valid: true };
+    } catch (e) {
+      return { valid: false, error: 'Invalid URL format' };
+    }
+  }
+
+  static sanitizeInput(input) {
+    return input.trim().replace(/[<>]/g, '');
+  }
+}
+
 class ServiceModal {
   
   constructor() {
@@ -15,10 +78,10 @@ class ServiceModal {
       { name: '3D Buildings Box', urlTemplate: 'https://hey.mapbox.com/3D-Buildings-Box/#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', color: '#FF9800', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
       { name: 'Labs HD Roads', urlTemplate: 'https://labs.mapbox.com/hd-roads/?lightPreset=satellite#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', color: '#9C27B0', backgroundImage: 'https://labs.mapbox.com/favicon.ico', altUrlTemplate: 'https://labs.mapbox.com/hd-roads/?lightPreset=day&source=3dln#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', hasShiftModifier: true },
       { name: 'HD Roads Prod', urlTemplate: 'https://console.mapbox.com/studio/tilesets/mapbox.hd-road-v1-bounded/#{{zoom}}/{{lat}}/{{lon}}', color: '#00BCD4', backgroundImage: 'https://www.mapbox.com/favicon.ico', isTileset: true, altUrlTemplate: 'https://console.mapbox.com/studio/tilesets/mapbox.hd-road-v1-bounded-demo/#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}', hasShiftModifier: true },
-      { name: '3DLN Demo Style', urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox-3dln/mbx-3d-line-navigation-demo-style.html?title=view&access_token=pk.eyJ1IjoibWFwYm94LTNkbG4iLCJhIjoiY200djloOGQ2MDBmNDJpc2J5OHVtdDVkNCJ9.-Lbyn-czRBlAxwl-yNWdTg&zoomwheel=true&fresh=true#{{zoom}}/{{lat}}/{{lon}}', color: '#E91E63', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
+      { name: '3DLN Demo Style', urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox-3dln/mbx-3d-line-navigation-demo-style.html?title=view&access_token=YOUR_MAPBOX_PUBLIC_TOKEN&zoomwheel=true&fresh=true#{{zoom}}/{{lat}}/{{lon}}', color: '#E91E63', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
       { name: 'Google Maps', urlTemplate: 'https://earth.google.com/web/@{{lat}},{{lon}},{{zoom}}a,0y,0h,0t,0r', color: '#4285F4', backgroundImage: 'https://www.google.com/favicon.ico', altUrlTemplate: 'https://www.google.com/maps/@{{lat}},{{lon}},{{zoom}}z', hasShiftModifier: true },
       { name: 'Direction Debug', urlTemplate: 'https://console.mapbox.com/directions-debug/#map={{lon}},{{lat}},{{zoom}}z', color: '#00BCD4', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
-      { name: '3D Model Slots', urlTemplate: 'https://sites.mapbox.com/mbx-3dbuilding-tools-staging/#/model-slots/2022-10-10/map/?center={{zoom}}%2F{{lon}}%2F{{lat}}&jira_summary=&jira_status=&jira_issue_id=&jira_labels=&jira_fix_versions=&env=prod&city=&iso_3166_1_alpha3=&lights=day&colorization=', color: '#9C27B0', backgroundImage: 'https://www.mapbox.com/favicon.ico', altUrlTemplate: 'https://sites.mapbox.com/mbx-3dbuilding-tools-staging/#/footprint/?center={{zoom}}%2F{{lon}}%2F{{lat}}', hasShiftModifier: true },
+      { name: '3D Model Slots', urlTemplate: 'https://sites.mapbox.com/mbx-3dbuilding-tools/#/model-slots/2022-10-10/map/?center={{zoom}}%2F{{lon}}%2F{{lat}}%2F{{bearing}}%2F{{pitch}}&env=prod&lights=day', color: '#9C27B0', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
       { name: 'OpenStreetMap', urlTemplate: 'https://www.openstreetmap.org/#map={{zoom}}/{{lat}}/{{lon}}', color: '#7EBC6F', backgroundImage: 'https://www.openstreetmap.org/favicon.ico' },
       { name: 'Bing Maps', urlTemplate: 'https://www.bing.com/maps?cp={{lat}}~{{lon}}&lvl={{zoom}}', color: '#008373', backgroundImage: 'https://www.bing.com/favicon.ico' },
       { name: 'Yandex Maps', urlTemplate: 'https://yandex.by/maps/?ll={{lon}},{{lat}}&z={{zoom}}', color: '#FF0000', backgroundImage: 'https://yandex.by/favicon.ico' },
@@ -98,14 +161,6 @@ class ServiceModal {
         const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn)');
         if (nameSpan) {
           nameSpan.textContent = shiftHeld ? 'Google Maps' : 'Google Earth';
-        }
-      }
-      
-      // Update 3D Model Slots name
-      if (serviceName === '3D Model Slots') {
-        const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn)');
-        if (nameSpan) {
-          nameSpan.textContent = shiftHeld ? 'Footprint' : '3D Model Slots';
         }
       }
       
@@ -413,7 +468,7 @@ class ServiceModal {
     btn.dataset.serviceName = service.name;
     
     // Mark buttons with additional functionality (Shift modifier)
-    if (service.name === '3D Buildings Box' || service.name === '3D Model Slots' || service.name === 'Labs HD Roads' || service.hasShiftModifier) {
+    if (service.name === '3D Buildings Box' || service.name === 'Labs HD Roads' || service.hasShiftModifier) {
       btn.classList.add('has-shift-modifier');
     }
     
@@ -555,10 +610,6 @@ class ServiceModal {
       url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
     }
     
-    if (service.name === '3D Model Slots' && shiftKey && service.altUrlTemplate) {
-      url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
-    }
-    
     if (service.name === 'Labs HD Roads' && shiftKey && service.altUrlTemplate) {
       url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
     }
@@ -657,18 +708,10 @@ class ServiceModal {
           url = url.replace(/\/\{\{bearing\}\}\/\{\{pitch\}\}/g, '');
         }
       } else {
-        // Individual replacements
-        if (hasPitch) {
-          url = url.replace(/\{\{pitch\}\}/g, coords.pitch);
-        } else if (url.includes('{{pitch}}')) {
-          url = url.replace(/\{\{pitch\}\}/g, '');
-        }
-        
-        if (hasBearing) {
-          url = url.replace(/\{\{bearing\}\}/g, coords.bearing);
-        } else if (url.includes('{{bearing}}')) {
-          url = url.replace(/\{\{bearing\}\}/g, '');
-        }
+        const bearingVal = hasBearing ? coords.bearing : 0;
+        const pitchVal = hasPitch ? coords.pitch : 0;
+        url = url.replace(/\{\{bearing\}\}/g, bearingVal);
+        url = url.replace(/\{\{pitch\}\}/g, pitchVal);
       }
       
       url = url.replace(/([^:]\/)\/+/g, '$1');
@@ -719,41 +762,59 @@ class ServiceModal {
     const form = dialog.querySelector('#custom-service-form');
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      
-      const name = document.getElementById('service-name').value.trim();
+
+      const name = ServiceValidator.sanitizeInput(document.getElementById('service-name').value);
       const url = document.getElementById('service-url').value.trim();
       const altUrl = document.getElementById('service-alt-url').value.trim();
-      
-      if (!name || !url) {
-        alert('Please fill in all required fields.');
+
+      // Validate service name
+      const nameValidation = ServiceValidator.validateServiceName(name);
+      if (!nameValidation.valid) {
+        alert(nameValidation.error);
         return;
       }
-      
+
       // Detect URL template
       const urlTemplate = this.detectUrlTemplate(url);
-      
+
       if (!urlTemplate) {
         alert('Could not detect URL pattern. Please use a URL with {{lat}}, {{lon}}, {{zoom}} placeholders.');
         return;
       }
-      
+
+      // Validate URL template
+      const urlValidation = ServiceValidator.validateServiceUrl(urlTemplate);
+      if (!urlValidation.valid) {
+        alert(urlValidation.error);
+        return;
+      }
+
       let altUrlTemplate = null;
       if (altUrl) {
         altUrlTemplate = this.detectUrlTemplate(altUrl);
+
+        // Validate alternative URL if provided
+        if (altUrlTemplate) {
+          const altUrlValidation = ServiceValidator.validateServiceUrl(altUrlTemplate);
+          if (!altUrlValidation.valid) {
+            alert('Alternative URL error: ' + altUrlValidation.error);
+            return;
+          }
+        }
       }
-      
+
       const service = {
         name: name,
         urlTemplate: urlTemplate,
         altUrlTemplate: altUrlTemplate,
         hasShiftModifier: !!altUrl
       };
-      
+
       this.customServices.push(service);
       this.saveCustomServices();
       this.renderServices();
       UIComponents.Logger.log(`Added custom service: ${name}`, "success");
-      
+
       document.body.removeChild(modal);
     });
     

@@ -108,6 +108,14 @@ class UIComponents {
         this._logContainer.scrollTop = this._logContainer.scrollHeight;
       }, 10);
     }
+
+    static logError(message, error) {
+      console.error(message, error);
+      const userMessage = error && error.message
+        ? `${message}: ${error.message}`
+        : message;
+      this.log(userMessage, "error");
+    }
   };
 
   static SlotRenderer = class {

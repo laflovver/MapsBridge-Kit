@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "MapsBridge Kit",
+  "name": "Kvietačka",
   "version": "3.3.0",
   "description": "Fast coordinate extraction from map URLs. Universal parser with automatic location naming.",
   "icons": {
@@ -13,14 +13,28 @@
     "scripting",
     "clipboardWrite",
     "clipboardRead",
-    "storage"
+    "storage",
+    "alarms"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "https://maps.google.com/*",
+        "https://www.google.com/maps/*",
+        "https://earth.google.com/*",
+        "https://www.openstreetmap.org/*",
+        "https://www.bing.com/maps/*",
+        "https://yandex.by/maps/*",
+        "https://*.mapbox.com/*",
+        "https://labs.mapbox.com/*",
+        "https://hey.mapbox.com/*",
+        "https://api.mapbox.com/*",
+        "https://console.mapbox.com/*",
+        "https://sites.mapbox.com/*"
+      ],
       "js": ["src/content/urlUpdater.js"],
       "run_at": "document_idle"
     }

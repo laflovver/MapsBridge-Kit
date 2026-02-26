@@ -7,15 +7,18 @@ class CoordinateExtractorApp {
     this.hotkeysDisabled = false;
     this.clipboardCoords = null;
     this.outputFormat = 'cli';
-    
+
     this.slotIds = [
       "saved-coords-0",
-      "saved-coords-1", 
+      "saved-coords-1",
       "saved-coords-2",
       "saved-coords-3"
     ];
-    
+
     this.serviceModal = null;
+    this._activeGeocodingRequests = new Map(); // slotIndex -> AbortController
+    this._eventListeners = [];
+    this._scrollListeners = new Map();
   }
 
   async init() {
@@ -24,11 +27,16 @@ class CoordinateExtractorApp {
         throw new Error("UIComponents is not defined");
       }
       UIComponents.init();
-      
+
       await this.loadSavedFormat();
       this.setupEventListeners();
       window.appInstance = this;
-      
+
+      // Setup cleanup on window unload
+      window.addEventListener('beforeunload', () => {
+        this.cleanup();
+      });
+
       if (chrome.runtime && chrome.runtime.sendMessage && !this._popupReadySent) {
         this._popupReadySent = true;
         setTimeout(() => {
@@ -38,7 +46,7 @@ class CoordinateExtractorApp {
       this.loadStoredCoordinates().catch(err => {
         console.error("Error loading stored coordinates:", err);
       });
-      
+
       if (typeof ServiceModal !== 'undefined') {
         this.serviceModal = new ServiceModal();
         this.serviceModal.init().then(() => {
@@ -47,11 +55,11 @@ class CoordinateExtractorApp {
           console.error("Error initializing service modal:", err);
         });
       }
-      
+
       this.extractCurrentTabCoordinates().catch(err => {
         console.error("Error extracting coordinates:", err);
       });
-      
+
     } catch (error) {
       console.error("App initialization error:", error);
       if (chrome.runtime && chrome.runtime.sendMessage && !this._popupReadySent) {
@@ -125,6 +133,10 @@ class CoordinateExtractorApp {
         e.preventDefault();
         this.handleNavigateToCoordinates();
         break;
+      case "KeyR":
+        e.preventDefault();
+        this.toggleFormat();
+        break;
       case "KeyE":
       case "KeyУ": // Russian layout
         e.preventDefault();
@@ -160,16 +172,18 @@ class CoordinateExtractorApp {
     try {
       const coords = await this.getActiveSlotCoordinates();
       if (!coords) {
+        UIComponents.Logger.log("No coordinates available to copy", "warning");
         return;
       }
 
       const formattedString = this.outputFormat === 'url'
         ? CoordinateParser.formatToUrlFormat(coords)
         : CoordinateParser.formatToCli(coords);
-      
+
       await navigator.clipboard.writeText(formattedString);
+      UIComponents.Logger.log("Copied to clipboard", "success");
     } catch (error) {
-      console.error("Clipboard error:", error);
+      UIComponents.Logger.logError("Failed to copy to clipboard", error);
     }
   }
 
@@ -179,55 +193,96 @@ class CoordinateExtractorApp {
       if (typeof Geocoder === 'undefined') {
         return;
       }
-      
+
+      // Cancel any existing geocoding request for this slot
+      if (this._activeGeocodingRequests.has(slotIndex)) {
+        console.log(`Cancelling previous geocoding request for slot ${slotIndex}`);
+        this._activeGeocodingRequests.get(slotIndex).abort();
+        this._activeGeocodingRequests.delete(slotIndex);
+      }
+
+      // Create new AbortController for this request
+      const abortController = new AbortController();
+      this._activeGeocodingRequests.set(slotIndex, abortController);
+
       const currentSlot = await StorageManager.getSlot(slotIndex);
       if (currentSlot && currentSlot.userNamed) {
         console.log('Slot has user-defined name, skipping geocoding');
+        this._activeGeocodingRequests.delete(slotIndex);
         return;
       }
-      
+
       if (currentSlot && (
-        currentSlot.lat !== coords.lat || 
+        currentSlot.lat !== coords.lat ||
         currentSlot.lon !== coords.lon
       )) {
         console.log('Coordinates changed, skipping geocoding for old coordinates');
+        this._activeGeocodingRequests.delete(slotIndex);
         return;
       }
-      
+
+      // Check if aborted before showing loading state
+      if (abortController.signal.aborted) {
+        console.log('Geocoding aborted before starting');
+        this._activeGeocodingRequests.delete(slotIndex);
+        return;
+      }
+
       const slotElement = document.getElementById(`saved-coords-${slotIndex}`);
       if (slotElement) {
         slotElement.textContent = 'Loading location...';
       }
-      
-      const locationName = await Geocoder.reverseGeocode(coords.lat, coords.lon);
-      
+
+      // Check if aborted before making API call
+      if (abortController.signal.aborted) {
+        console.log('Geocoding aborted before API call');
+        this._activeGeocodingRequests.delete(slotIndex);
+        return;
+      }
+
+      // Pass signal and timeout to Geocoder
+      const locationName = await Geocoder.reverseGeocode(coords.lat, coords.lon, {
+        signal: abortController.signal,
+        timeout: 10000
+      });
+
+      // Check if aborted after API call
+      if (abortController.signal.aborted) {
+        console.log('Geocoding aborted after API call');
+        this._activeGeocodingRequests.delete(slotIndex);
+        return;
+      }
+
       const slotAfterGeocoding = await StorageManager.getSlot(slotIndex);
       if (!slotAfterGeocoding) {
+        this._activeGeocodingRequests.delete(slotIndex);
         return;
       }
-      
+
       if (slotAfterGeocoding.userNamed) {
         console.log('Slot was manually named during geocoding, skipping update');
+        this._activeGeocodingRequests.delete(slotIndex);
         return;
       }
-      
+
       if (slotAfterGeocoding.lat !== coords.lat || slotAfterGeocoding.lon !== coords.lon) {
         console.log('Coordinates changed during geocoding, skipping update');
+        this._activeGeocodingRequests.delete(slotIndex);
         return;
       }
-      
+
       if (locationName) {
         const shortName = Geocoder.createShortName(locationName);
-        
+
         const updatedCoords = {
           ...slotAfterGeocoding,
           name: shortName,
           fullName: locationName,
           userNamed: false
         };
-        
+
         await StorageManager.setSlot(slotIndex, updatedCoords);
-        
+
         const element = document.getElementById(`saved-coords-${slotIndex}`);
         if (element) {
           const updatedSlot = await StorageManager.getSlot(slotIndex);
@@ -241,8 +296,14 @@ class CoordinateExtractorApp {
           UIComponents.SlotRenderer.renderContent(element, displayText, slotAfterGeocoding?.labelColor);
         }
       }
+
+      // Clean up controller when done
+      this._activeGeocodingRequests.delete(slotIndex);
     } catch (error) {
-      console.error('Error adding location name:', error);
+      // Clean up controller on error
+      this._activeGeocodingRequests.delete(slotIndex);
+
+      UIComponents.Logger.logError('Failed to load location name', error);
       try {
         const element = document.getElementById(`saved-coords-${slotIndex}`);
         if (element) {
@@ -253,7 +314,7 @@ class CoordinateExtractorApp {
           }
         }
       } catch (restoreError) {
-        console.error('Error restoring slot display:', restoreError);
+        UIComponents.Logger.logError('Failed to restore slot display', restoreError);
       }
     }
   }
@@ -270,8 +331,7 @@ class CoordinateExtractorApp {
       await BrowserManager.updateActiveTabWithCoordinates(coords);
       UIComponents.Logger.log("URL updated successfully", "success");
     } catch (error) {
-      console.error("Navigation error:", error);
-      UIComponents.Logger.log("Navigation error: " + error.message, "error");
+      UIComponents.Logger.logError("Failed to navigate to coordinates", error);
     }
   }
 
@@ -291,9 +351,31 @@ class CoordinateExtractorApp {
     }
 
     const slotIndex = this.getActiveSlotIndex();
+
+    // Don't allow clearing slot 0
+    if (slotIndex === 0) {
+      UIComponents.Logger.log("Cannot clear auto-extracted slot.", "warning");
+      return;
+    }
+
+    const slot = await StorageManager.getSlot(slotIndex);
+    if (!slot) {
+      UIComponents.Logger.log(`Slot ${slotIndex} is already empty`, "info");
+      return;
+    }
+
+    const displayText = StorageManager.getSlotDisplayText(slot, slotIndex);
+    const confirmed = confirm(`Clear slot ${slotIndex}?\n\n${displayText}\n\nThis cannot be undone.`);
+
+    if (!confirmed) {
+      UIComponents.Logger.log("Clear cancelled", "info");
+      return;
+    }
+
     console.log('Clearing slot:', slotIndex);
     await StorageManager.setSlot(slotIndex, null);
     this.refreshUI();
+    UIComponents.Logger.log(`Slot ${slotIndex} cleared`, "success");
   }
 
   getActiveSlotIndex() {
@@ -638,48 +720,39 @@ class CoordinateExtractorApp {
   setupKeyboardShortcuts() {
     document.addEventListener("keydown", (e) => {
       if (this.hotkeysDisabled) return;
-      
+
       const tag = e.target.tagName.toLowerCase();
       if ((tag === "input" || tag === "textarea") && e.target.id !== this.activeSlotId) {
         return;
       }
 
-      switch (e.code) {
-        case "KeyC":
-          e.preventDefault();
-          document.getElementById("copy-cli")?.click();
-          break;
-          
-        case "KeyV":
-          e.preventDefault();
-          document.getElementById("paste-coords")?.click();
-          break;
-          
-        case "KeyG":
-          e.preventDefault();
-          document.getElementById("navigate-url")?.click();
-          break;
-          
-        case "KeyE":
-          e.preventDefault();
-          this.editActiveSlotLabel();
-          break;
+      // Undo: Ctrl/Cmd + Z (without Shift)
+      if (e.code === "KeyZ" && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+        e.preventDefault();
+        this.handleUndo();
+        return;
+      }
 
-        case "KeyR":
+      // Redo: Ctrl/Cmd + Shift + Z
+      if (e.code === "KeyZ" && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+        e.preventDefault();
+        this.handleRedo();
+        return;
+      }
+
+      // Slot selection: Alt/Option + 1-4
+      if (e.code.startsWith("Digit") && (e.altKey || e.metaKey)) {
+        const digit = e.code.replace("Digit", "");
+        if (digit >= "1" && digit <= "4") {
           e.preventDefault();
-          this.toggleFormat();
-          break;
-          
-        case "Digit1":
-        case "Digit2":
-        case "Digit3":
-        case "Digit4":
-          if (e.altKey || e.metaKey) {
-            e.preventDefault();
-            const slotNumber = parseInt(e.code.replace("Digit", ""), 10);
-            this.selectSlot(slotNumber);
-          }
-          break;
+          const slotNumber = parseInt(digit, 10);
+          this.selectSlot(slotNumber);
+        }
+        return;
+      }
+
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        this.handleGlobalHotkeys(e);
       }
     });
   }
@@ -708,14 +781,34 @@ class CoordinateExtractorApp {
 
 
   async clearSlot(slotIndex) {
+    // Don't allow clearing slot 0
+    if (slotIndex === 0) {
+      UIComponents.Logger.log("Cannot clear auto-extracted slot.", "warning");
+      return;
+    }
+
+    const slot = await StorageManager.getSlot(slotIndex);
+    if (!slot) {
+      UIComponents.Logger.log(`Slot ${slotIndex} is already empty`, "info");
+      return;
+    }
+
+    const displayText = StorageManager.getSlotDisplayText(slot, slotIndex);
+    const confirmed = confirm(`Clear slot ${slotIndex}?\n\n${displayText}\n\nThis cannot be undone.`);
+
+    if (!confirmed) {
+      UIComponents.Logger.log("Clear cancelled", "info");
+      return;
+    }
+
     await StorageManager.clearSlot(slotIndex);
-    
+
     const element = document.getElementById(`saved-coords-${slotIndex}`);
     if (element) {
       element.textContent = `Coordinate slot ${slotIndex} ...`;
     }
-    
-    UIComponents.Logger.log(`Slot ${slotIndex} cleared`, "info");
+
+    UIComponents.Logger.log(`Slot ${slotIndex} cleared`, "success");
   }
 
   editActiveSlotLabel() {
@@ -729,13 +822,6 @@ class CoordinateExtractorApp {
   }
 
   attachEditFunctionality() {
-    // Add hotkey handler for editing
-    document.addEventListener("keydown", (e) => {
-      if (e.code === "KeyE" && !this.hotkeysDisabled) {
-        this.editActiveSlotLabel();
-      }
-    });
-
     document.querySelectorAll(".saved-slot-item .edit-btn").forEach((btn) => {
       const slot = btn.closest(".saved-slot-item");
       
@@ -839,16 +925,58 @@ class CoordinateExtractorApp {
 
   setupScrollSnapping() {
     document.querySelectorAll(".saved-slot-item .slot-inner").forEach((inner) => {
-      inner.addEventListener("scroll", () => {
+      const scrollHandler = () => {
         clearTimeout(inner.snapTimeout);
         inner.snapTimeout = setTimeout(() => {
           UIComponents.Utils.snapScroll(inner);
         }, 100);
-      });
+      };
+
+      inner.addEventListener("scroll", scrollHandler);
+      this._scrollListeners.set(inner, scrollHandler);
     });
   }
 
+  async handleUndo() {
+    const success = await StorageManager.undo();
+    if (success) {
+      UIComponents.Logger.log("Undo successful", "success");
+      await this.refreshUI();
+    } else {
+      UIComponents.Logger.log("Nothing to undo", "info");
+    }
+  }
 
+  async handleRedo() {
+    const success = await StorageManager.redo();
+    if (success) {
+      UIComponents.Logger.log("Redo successful", "success");
+      await this.refreshUI();
+    } else {
+      UIComponents.Logger.log("Nothing to redo", "info");
+    }
+  }
+
+  cleanup() {
+    // Remove all tracked event listeners
+    this._eventListeners.forEach(({ element, event, handler, options }) => {
+      element.removeEventListener(event, handler, options);
+    });
+    this._eventListeners = [];
+
+    // Clean up scroll listeners and timeouts
+    this._scrollListeners.forEach((handler, element) => {
+      element.removeEventListener("scroll", handler);
+      if (element.snapTimeout) {
+        clearTimeout(element.snapTimeout);
+      }
+    });
+    this._scrollListeners.clear();
+
+    // Abort any active geocoding requests
+    this._activeGeocodingRequests.forEach(controller => controller.abort());
+    this._activeGeocodingRequests.clear();
+  }
 
 }
 

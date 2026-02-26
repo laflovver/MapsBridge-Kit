@@ -4,26 +4,28 @@ chrome.action.onClicked.addListener(async () => {
 
 console.log("Background service worker loaded");
 
-// Loading animation state
-let loadingAnimationInterval = null;
-let loadingAnimationStep = 0;
-let originalIconPath = null;
-let iconBitmap = null;
+// Constants
 const ANIMATION_STEPS = 12; // 12 steps = 30 degrees per step
-const ANIMATION_SPEED = 100; // ms per step
+const ANIMATION_SPEED_MS = 100; // ms per step
+
+// Animation state (transient - OK for short animations)
+// Service worker stays alive during animation (only 1-3 seconds)
+let animationInterval = null;
+let animationStep = 0;
+let iconBitmap = null;
 
 /**
  * Load original icon image as ImageBitmap
  */
 async function loadOriginalIcon() {
   if (iconBitmap) return iconBitmap;
-  
+
   try {
     const iconUrl = chrome.runtime.getURL('image.png');
     const response = await fetch(iconUrl);
     const blob = await response.blob();
     iconBitmap = await createImageBitmap(blob);
-    
+
     return iconBitmap;
   } catch (error) {
     console.error('Error loading icon:', error);
@@ -33,71 +35,67 @@ async function loadOriginalIcon() {
 
 /**
  * Start loading animation by rotating icon
+ * Note: Uses setInterval which is OK for short animations (1-3 seconds)
+ * Service worker stays alive during this period
  */
 async function startLoadingAnimation() {
-  // Clear any existing animation
+  // Stop any existing animation
   await stopLoadingAnimation();
-  
-  // Store original icon path
-  if (!originalIconPath) {
-    originalIconPath = chrome.runtime.getURL('image.png');
-  }
-  
+
   // Load icon if not loaded
   const bitmap = await loadOriginalIcon();
-  
   if (!bitmap) {
     console.error('Failed to load icon for animation');
     return;
   }
-  
-  loadingAnimationStep = 0;
-  loadingAnimationInterval = setInterval(async () => {
-    const degrees = (loadingAnimationStep * 360) / ANIMATION_STEPS;
-    
+
+  animationStep = 0;
+  animationInterval = setInterval(async () => {
+    const degrees = (animationStep * 360) / ANIMATION_STEPS;
+
     try {
       const canvas = new OffscreenCanvas(128, 128);
       const ctx = canvas.getContext('2d');
-      
+
       ctx.clearRect(0, 0, 128, 128);
       ctx.save();
       ctx.translate(64, 64);
       ctx.rotate((degrees * Math.PI) / 180);
       ctx.drawImage(bitmap, -64, -64);
       ctx.restore();
-      
+
       const imageData = ctx.getImageData(0, 0, 128, 128);
       await chrome.action.setIcon({ imageData: { 128: imageData } });
+
+      animationStep = (animationStep + 1) % ANIMATION_STEPS;
     } catch (error) {
       console.error('Error rotating icon:', error);
+      await stopLoadingAnimation();
     }
-    
-    loadingAnimationStep = (loadingAnimationStep + 1) % ANIMATION_STEPS;
-  }, ANIMATION_SPEED);
+  }, ANIMATION_SPEED_MS);
+
+  console.log('Animation started');
 }
 
 /**
  * Stop loading animation and restore original icon
  */
 async function stopLoadingAnimation() {
-  if (loadingAnimationInterval) {
-    clearInterval(loadingAnimationInterval);
-    loadingAnimationInterval = null;
+  if (animationInterval) {
+    clearInterval(animationInterval);
+    animationInterval = null;
   }
-  
-  if (originalIconPath) {
-    try {
-      await chrome.action.setIcon({ path: originalIconPath });
-    } catch (error) {
-      console.error('Error restoring icon:', error);
-    }
-  } else {
-    try {
-      await chrome.action.setIcon({ path: 'image.png' });
-    } catch (error) {
-      console.error('Error restoring icon:', error);
-    }
+
+  animationStep = 0;
+
+  // Restore original icon
+  try {
+    await chrome.action.setIcon({ path: 'image.png' });
+  } catch (error) {
+    console.error('Error restoring icon:', error);
   }
+
+  console.log('Animation stopped');
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -118,53 +116,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 chrome.commands.onCommand.addListener(async (command) => {
   console.log("Command received:", command);
-  
+
   if (command === "open-extension") {
     console.log("Opening extension via keyboard shortcut...");
-    
+
     startLoadingAnimation();
-    
-    const extensionUrl = chrome.runtime.getURL('popup.html');
-    
-    const windows = await chrome.windows.getAll({ populate: true });
-    const existingPopup = windows.find(win => {
-      if (win.type === 'popup' && win.tabs && win.tabs.length > 0) {
-        return win.tabs.some(tab => tab.url === extensionUrl);
-      }
-      return false;
-    });
-    
-    if (existingPopup) {
-      await chrome.windows.update(existingPopup.id, { focused: true });
-      console.log("Focused existing popup window");
-      stopLoadingAnimation();
-      return;
-    }
-    
+
     try {
-      try {
-        await chrome.action.openPopup();
-        console.log("Popup opened via action.openPopup (Arc Browser?)");
-        setTimeout(() => stopLoadingAnimation(), 3000);
-        return;
-      } catch (popupError) {
-        console.log("action.openPopup not available, using window method");
+      // Get current window
+      const currentWindow = await chrome.windows.getCurrent();
+      const currentTab = await chrome.tabs.query({ active: true, windowId: currentWindow.id });
+
+      if (currentTab && currentTab.length > 0) {
+        // Try to open popup relative to current tab
+        try {
+          await chrome.action.openPopup({ windowId: currentWindow.id });
+          console.log("Popup opened successfully");
+          setTimeout(() => stopLoadingAnimation(), 1000);
+          return;
+        } catch (popupError) {
+          console.log("openPopup failed, trying alternative method:", popupError.message);
+        }
       }
-      
+
+      // Fallback: Create small window centered on current window
+      console.log("Using fallback: creating small window");
       const popupWindow = await chrome.windows.create({
-        url: extensionUrl,
+        url: chrome.runtime.getURL('popup.html'),
         type: 'popup',
         width: 680,
         height: 720,
-        focused: true
+        focused: true,
+        left: currentWindow.left + Math.floor((currentWindow.width - 680) / 2),
+        top: currentWindow.top + 100
       });
+
       console.log("Extension opened in popup window, window ID:", popupWindow.id);
-      setTimeout(() => stopLoadingAnimation(), 3000);
-    } catch (windowError) {
-      console.error("Error opening extension via command:", windowError);
+      setTimeout(() => stopLoadingAnimation(), 1000);
+
+    } catch (error) {
+      console.error("Error opening extension via command:", error);
       stopLoadingAnimation();
     }
-  } else {
-    console.log("Unknown command:", command);
   }
 });
