@@ -109,8 +109,8 @@ class BrowserManager {
       this._createGoogleMapsRule(currentUrlStr, coords),
       this._createMapboxRule(currentUrl, mainPart, coords),
       this._createMapboxConsoleRule(currentUrlStr, coords),
+      this._createHashEncodedParamRule(currentUrlStr, coords),
       this._createHashMapRule(currentUrlStr, coords),
-      this._createHashCenterRule(currentUrlStr, coords),
       this._createHashSlashRule(currentUrl, mainPart, coords),
       this._createSearchParamsRule(currentUrl, coords)
     ];
@@ -213,85 +213,69 @@ class BrowserManager {
     };
   }
 
-  static _createHashMapRule(currentUrlStr, coords) {
+  static _createHashEncodedParamRule(currentUrlStr, coords) {
     return {
-      match: (url) => url.hash.includes("map="),
-      transform: (url) => currentUrlStr.replace(/(map=)[^&]+/, `$1${coords.zoom}/${coords.lat}/${coords.lon}`)
+      match: (url) => {
+        const hash = url.hash || '';
+        const search = url.search || '';
+        if (hash.includes("center=") || search.includes("center=")) return true;
+        const mapMatch = hash.match(/[?&]map=([^&]+)/);
+        if (mapMatch && mapMatch[1].includes('%2F')) return true;
+        return false;
+      },
+      transform: (url) => {
+        const paramMatch = currentUrlStr.match(/(center|map)=([^&]+)/);
+        if (!paramMatch) return null;
+        
+        const paramName = paramMatch[1];
+        const originalValue = decodeURIComponent(paramMatch[2]);
+        const parts = originalValue.split(/%2F|\//).filter(p => p.trim() !== '');
+        
+        let newValue;
+        
+        if (parts.length >= 3) {
+          const p0 = parseFloat(parts[0]);
+          const p1 = parseFloat(parts[1]);
+          const p2 = parseFloat(parts[2]);
+          
+          if (p0 >= 0 && p0 <= 25 && p1 >= -180 && p1 <= 180 && p2 >= -90 && p2 <= 90) {
+            newValue = `${coords.zoom}%2F${coords.lon}%2F${coords.lat}`;
+          } else if (p0 >= -180 && p0 <= 180 && p1 >= -90 && p1 <= 90) {
+            newValue = `${coords.lon}%2F${coords.lat}%2F${coords.zoom}`;
+          } else {
+            newValue = `${coords.zoom}%2F${coords.lon}%2F${coords.lat}`;
+          }
+          
+          const hasOriginalBearing = parts.length >= 4;
+          const hasOriginalPitch = parts.length >= 5;
+          
+          if (hasOriginalBearing) {
+            const bearing = (coords.bearing !== undefined && coords.bearing !== null) ? coords.bearing : (parseFloat(parts[3]) || 0);
+            newValue += `%2F${bearing}`;
+          }
+          if (hasOriginalPitch) {
+            const pitch = (coords.pitch !== undefined && coords.pitch !== null) ? coords.pitch : (parseFloat(parts[4]) || 0);
+            newValue += `%2F${pitch}`;
+          }
+        } else {
+          newValue = `${coords.zoom}%2F${coords.lon}%2F${coords.lat}`;
+        }
+        
+        const regex = new RegExp(`${paramName}=([^&]+)`);
+        return currentUrlStr.replace(regex, `${paramName}=${newValue}`);
+      }
     };
   }
 
-  static _createHashCenterRule(currentUrlStr, coords) {
+  static _createHashMapRule(currentUrlStr, coords) {
     return {
-      match: (url) => url.hash.includes("center=") || url.search.includes("center="),
-      transform: (url) => {
-        // Check the original format in the URL to preserve it
-        const centerMatch = currentUrlStr.match(/center=([^&]+)/);
-        
-        if (centerMatch) {
-          const originalCenter = decodeURIComponent(centerMatch[1]);
-          const parts = originalCenter.split(/[%2F\/]/).filter(p => p.trim() !== '');
-          
-          let newCenterValue;
-          
-          if (parts.length >= 3) {
-            const p0 = parseFloat(parts[0]);
-            const p1 = parseFloat(parts[1]);
-            const p2 = parseFloat(parts[2]);
-            
-            // Determine format: zoom/lon/lat if first is 0-25 and second is -180 to 180
-            if (p0 >= 0 && p0 <= 25 && p1 >= -180 && p1 <= 180 && p2 >= -90 && p2 <= 90) {
-              // Format is zoom/lon/lat - preserve this format
-              newCenterValue = `${coords.zoom}%2F${coords.lon}%2F${coords.lat}`;
-            } else if (p0 >= -180 && p0 <= 180 && p1 >= -90 && p1 <= 90) {
-              // Format is lon/lat/zoom - preserve this format
-              newCenterValue = `${coords.lon}%2F${coords.lat}%2F${coords.zoom}`;
-            } else {
-              // Default: use zoom/lon/lat format
-              newCenterValue = `${coords.zoom}%2F${coords.lon}%2F${coords.lat}`;
-            }
-            
-            // Add bearing and pitch if they exist in original URL or in coords
-            const hasOriginalBearing = parts.length >= 4;
-            const hasOriginalPitch = parts.length >= 5;
-            const hasCoordsBearing = coords.bearing !== undefined && coords.bearing !== null;
-            const hasCoordsPitch = coords.pitch !== undefined && coords.pitch !== null;
-            
-            if (hasOriginalBearing || hasCoordsBearing) {
-              newCenterValue += `%2F${coords.bearing !== undefined && coords.bearing !== null ? coords.bearing : (parts[3] || 0)}`;
-            }
-            if (hasOriginalPitch || hasCoordsPitch) {
-              newCenterValue += `%2F${coords.pitch !== undefined && coords.pitch !== null ? coords.pitch : (parts[4] || 0)}`;
-            }
-          } else {
-            // Default: use zoom/lon/lat format for unknown cases
-            newCenterValue = `${coords.zoom}%2F${coords.lon}%2F${coords.lat}`;
-            
-            // Add bearing and pitch if they exist in coords
-            if (coords.bearing !== undefined && coords.bearing !== null) {
-              newCenterValue += `%2F${coords.bearing}`;
-            }
-            if (coords.pitch !== undefined && coords.pitch !== null) {
-              newCenterValue += `%2F${coords.pitch}`;
-            }
-          }
-          
-          // Replace center parameter value while preserving everything else
-          // Match center= followed by value until & or end of string/hash
-          // This preserves the rest of the URL structure (hash fragments, other parameters, etc.)
-          return currentUrlStr.replace(/center=([^&]+)/, `center=${newCenterValue}`);
-        }
-        
-        // If center parameter doesn't exist, add it (but this shouldn't happen if match is true)
-        // Default: use zoom/lon/lat format for unknown cases
-        let defaultCenter = `${coords.zoom}%2F${coords.lon}%2F${coords.lat}`;
-        if (coords.bearing !== undefined && coords.bearing !== null) {
-          defaultCenter += `%2F${coords.bearing}`;
-        }
-        if (coords.pitch !== undefined && coords.pitch !== null) {
-          defaultCenter += `%2F${coords.pitch}`;
-        }
-        return currentUrlStr.replace(/center=([^&]+)/, `center=${defaultCenter}`);
-      }
+      match: (url) => {
+        if (!url.hash.includes("map=")) return false;
+        const mapMatch = url.hash.match(/map=([^&]+)/);
+        if (mapMatch && mapMatch[1].includes('%2F')) return false;
+        return true;
+      },
+      transform: (url) => currentUrlStr.replace(/(map=)[^&]+/, `$1${coords.zoom}/${coords.lat}/${coords.lon}`)
     };
   }
 

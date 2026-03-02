@@ -119,53 +119,11 @@ class CoordinateExtractorApp {
     }
   }
 
-  handleGlobalHotkeys(e) {
-    switch (e.code) {
-      case "KeyC":
-        e.preventDefault();
-        this.handleCopyToClipboard();
-        break;
-      case "KeyV":
-        e.preventDefault();
-        this.handlePasteFromClipboard();
-        break;
-      case "KeyG":
-        e.preventDefault();
-        this.handleNavigateToCoordinates();
-        break;
-      case "KeyR":
-        e.preventDefault();
-        this.toggleFormat();
-        break;
-      case "KeyE":
-      case "KeyУ": // Russian layout
-        e.preventDefault();
-        this.handleEditSlot();
-        break;
-      case "KeyQ":
-      case "KeyЙ": // Russian layout
-        e.preventDefault();
-        this.selectSlot(0);
-        break;
-      case "Digit1":
-        e.preventDefault();
-        this.selectSlot(1);
-        break;
-      case "Digit2":
-        e.preventDefault();
-        this.selectSlot(2);
-        break;
-      case "Digit3":
-        e.preventDefault();
-        this.selectSlot(3);
-        break;
-      case "Backspace":
-      case "Delete":
-        e.preventDefault();
-        console.log('Clear slot hotkey pressed, activeSlotId:', this.activeSlotId);
-        this.clearActiveSlot();
-        break;
-    }
+  isHotkey(e, codes, keys) {
+    const key = (e.key || '').toLowerCase();
+    const codeMatch = [].concat(codes).some(c => c === e.code);
+    const keyMatch = [].concat(keys || []).some(k => key === k.toLowerCase());
+    return codeMatch || keyMatch;
   }
 
   async handleCopyToClipboard() {
@@ -722,37 +680,76 @@ class CoordinateExtractorApp {
       if (this.hotkeysDisabled) return;
 
       const tag = e.target.tagName.toLowerCase();
-      if ((tag === "input" || tag === "textarea") && e.target.id !== this.activeSlotId) {
+      const inInput = tag === "input" || tag === "textarea";
+      if (inInput && !e.target.readOnly && e.target.id !== this.activeSlotId) {
         return;
       }
 
-      // Undo: Ctrl/Cmd + Z (without Shift)
-      if (e.code === "KeyZ" && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+      if (e.code === "KeyZ" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        this.handleUndo();
+        e.shiftKey ? this.handleRedo() : this.handleUndo();
         return;
       }
 
-      // Redo: Ctrl/Cmd + Shift + Z
-      if (e.code === "KeyZ" && (e.ctrlKey || e.metaKey) && e.shiftKey) {
-        e.preventDefault();
-        this.handleRedo();
-        return;
-      }
-
-      // Slot selection: Alt/Option + 1-4
-      if (e.code.startsWith("Digit") && (e.altKey || e.metaKey)) {
+      if ((e.altKey || e.metaKey) && e.code.startsWith("Digit")) {
         const digit = e.code.replace("Digit", "");
         if (digit >= "1" && digit <= "4") {
           e.preventDefault();
-          const slotNumber = parseInt(digit, 10);
-          this.selectSlot(slotNumber);
+          this.selectSlot(parseInt(digit, 10));
         }
         return;
       }
 
-      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-        this.handleGlobalHotkeys(e);
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      if (this.isHotkey(e, "KeyC", ["c", "с"])) {
+        e.preventDefault();
+        document.getElementById("copy-cli")?.click();
+        return;
+      }
+      if (this.isHotkey(e, "KeyV", ["v", "м"])) {
+        e.preventDefault();
+        document.getElementById("paste-coords")?.click();
+        return;
+      }
+      if (this.isHotkey(e, "KeyG", ["g", "п"])) {
+        e.preventDefault();
+        document.getElementById("navigate-url")?.click();
+        return;
+      }
+      if (this.isHotkey(e, ["KeyE", "KeyУ"], ["e", "у"])) {
+        e.preventDefault();
+        this.editActiveSlotLabel();
+        return;
+      }
+      if (this.isHotkey(e, "KeyR", ["r", "к"])) {
+        e.preventDefault();
+        this.toggleFormat();
+        return;
+      }
+      if (this.isHotkey(e, ["KeyQ", "KeyЙ"], ["q", "й"])) {
+        e.preventDefault();
+        this.selectSlot(0);
+        return;
+      }
+      if (e.code === "Digit1" || (e.key || "").toLowerCase() === "1") {
+        e.preventDefault();
+        this.selectSlot(1);
+        return;
+      }
+      if (e.code === "Digit2" || (e.key || "").toLowerCase() === "2") {
+        e.preventDefault();
+        this.selectSlot(2);
+        return;
+      }
+      if (e.code === "Digit3" || (e.key || "").toLowerCase() === "3") {
+        e.preventDefault();
+        this.selectSlot(3);
+        return;
+      }
+      if (e.code === "Backspace" || e.code === "Delete") {
+        e.preventDefault();
+        this.clearActiveSlot();
       }
     });
   }

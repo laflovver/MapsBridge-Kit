@@ -81,7 +81,7 @@ class ServiceModal {
       { name: '3DLN Demo Style', urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox-3dln/mbx-3d-line-navigation-demo-style.html?title=view&access_token=YOUR_MAPBOX_PUBLIC_TOKEN&zoomwheel=true&fresh=true#{{zoom}}/{{lat}}/{{lon}}', color: '#E91E63', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
       { name: 'Google Maps', urlTemplate: 'https://earth.google.com/web/@{{lat}},{{lon}},{{zoom}}a,0y,0h,0t,0r', color: '#4285F4', backgroundImage: 'https://www.google.com/favicon.ico', altUrlTemplate: 'https://www.google.com/maps/@{{lat}},{{lon}},{{zoom}}z', hasShiftModifier: true },
       { name: 'Direction Debug', urlTemplate: 'https://console.mapbox.com/directions-debug/#map={{lon}},{{lat}},{{zoom}}z', color: '#00BCD4', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
-      { name: '3D Model Slots', urlTemplate: 'https://sites.mapbox.com/mbx-3dbuilding-tools/#/model-slots/2022-10-10/map/?center={{zoom}}%2F{{lon}}%2F{{lat}}%2F{{bearing}}%2F{{pitch}}&env=prod&lights=day', color: '#9C27B0', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
+      { name: '3D Model Slots', urlTemplate: 'https://sites.mapbox.com/mbx-3dbuilding-tools/#/model-slots/2022-10-10/map/?center={{zoom}}%2F{{lon}}%2F{{lat}}%2F{{bearing}}%2F{{pitch}}&env=prod&lights=day', color: '#9C27B0', backgroundImage: 'https://www.mapbox.com/favicon.ico', altUrlTemplate: 'https://sites.mapbox.com/mbx-3dbuilding-tools-demo/#/footprint/?map={{zoom}}%2F{{lon}}%2F{{lat}}', hasShiftModifier: true },
       { name: 'OpenStreetMap', urlTemplate: 'https://www.openstreetmap.org/#map={{zoom}}/{{lat}}/{{lon}}', color: '#7EBC6F', backgroundImage: 'https://www.openstreetmap.org/favicon.ico' },
       { name: 'Bing Maps', urlTemplate: 'https://www.bing.com/maps?cp={{lat}}~{{lon}}&lvl={{zoom}}', color: '#008373', backgroundImage: 'https://www.bing.com/favicon.ico' },
       { name: 'Yandex Maps', urlTemplate: 'https://yandex.by/maps/?ll={{lon}},{{lat}}&z={{zoom}}', color: '#FF0000', backgroundImage: 'https://yandex.by/favicon.ico' },
@@ -169,6 +169,13 @@ class ServiceModal {
         const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn)');
         if (nameSpan) {
           nameSpan.textContent = shiftHeld ? 'Labs HD 3DLN Demo' : 'Labs HD Roads';
+        }
+      }
+
+      if (serviceName === '3D Model Slots') {
+        const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn)');
+        if (nameSpan) {
+          nameSpan.textContent = shiftHeld ? 'Footprint' : '3D Model Slots';
         }
       }
     });
@@ -468,7 +475,7 @@ class ServiceModal {
     btn.dataset.serviceName = service.name;
     
     // Mark buttons with additional functionality (Shift modifier)
-    if (service.name === '3D Buildings Box' || service.name === 'Labs HD Roads' || service.hasShiftModifier) {
+    if (service.name === '3D Buildings Box' || service.name === '3D Model Slots' || service.name === 'Labs HD Roads' || service.hasShiftModifier) {
       btn.classList.add('has-shift-modifier');
     }
     
@@ -602,6 +609,10 @@ class ServiceModal {
       url = urlObj.toString();
     }
     
+    if (service.name === '3D Model Slots' && shiftKey && service.altUrlTemplate) {
+      url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
+    }
+
     if (service.name === 'HD Roads Prod' && shiftKey && service.altUrlTemplate) {
       url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
     }
@@ -699,13 +710,13 @@ class ServiceModal {
       const hasBearing = coords.bearing !== undefined && coords.bearing !== null;
       const hasPitch = coords.pitch !== undefined && coords.pitch !== null;
       
-      if (url.includes('/{{bearing}}/{{pitch}}')) {
+      if (url.includes('/{{bearing}}/{{pitch}}') || url.includes('%2F{{bearing}}%2F{{pitch}}')) {
         if (hasBearing && hasPitch) {
           url = url.replace(/\{\{bearing\}\}/g, coords.bearing);
           url = url.replace(/\{\{pitch\}\}/g, coords.pitch);
         } else {
-          // Remove the /bearing/pitch part if not available
           url = url.replace(/\/\{\{bearing\}\}\/\{\{pitch\}\}/g, '');
+          url = url.replace(/%2F\{\{bearing\}\}%2F\{\{pitch\}\}/g, '');
         }
       } else {
         const bearingVal = hasBearing ? coords.bearing : 0;

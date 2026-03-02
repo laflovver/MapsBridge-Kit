@@ -130,22 +130,40 @@ class CoordinateParser {
           const p2 = parseFloat(parts[2]);
           
           if (p0 >= 0 && p0 <= 25 && p1 >= -180 && p1 <= 180 && p2 >= -90 && p2 <= 90) {
-            return {
-              zoom: p0,
-              lon: p1,
-              lat: p2,
-              bearing: parts[3] ? parseFloat(parts[3]) : 0,
-              pitch: parts[4] ? parseFloat(parts[4]) : 0
-            };
+            const result = { zoom: p0, lon: p1, lat: p2 };
+            if (parts.length >= 4) result.bearing = parseFloat(parts[3]);
+            if (parts.length >= 5) result.pitch = parseFloat(parts[4]);
+            return result;
           }
           if (p0 >= -180 && p0 <= 180 && p1 >= -90 && p1 <= 90) {
-            return {
-              lon: p0,
-              lat: p1,
-              zoom: p2,
-              bearing: parts[3] ? parseFloat(parts[3]) : 0,
-              pitch: parts[4] ? parseFloat(parts[4]) : 0
-            };
+            const result = { lon: p0, lat: p1, zoom: p2 };
+            if (parts.length >= 4) result.bearing = parseFloat(parts[3]);
+            if (parts.length >= 5) result.pitch = parseFloat(parts[4]);
+            return result;
+          }
+        }
+      }
+    }
+    
+    if (hash.includes('map=')) {
+      match = hash.match(/[?&]map=([^&]+)/);
+      if (match) {
+        const mapValue = decodeURIComponent(match[1]);
+        const parts = mapValue.split(/%2F|\//).filter(p => {
+          const trimmed = p.trim();
+          return trimmed !== '' && !isNaN(parseFloat(trimmed));
+        });
+        
+        if (parts.length >= 3) {
+          const p0 = parseFloat(parts[0]);
+          const p1 = parseFloat(parts[1]);
+          const p2 = parseFloat(parts[2]);
+          
+          if (p0 >= 0 && p0 <= 25 && p1 >= -180 && p1 <= 180 && p2 >= -90 && p2 <= 90) {
+            const result = { zoom: p0, lon: p1, lat: p2 };
+            if (parts.length >= 4) result.bearing = parseFloat(parts[3]);
+            if (parts.length >= 5) result.pitch = parseFloat(parts[4]);
+            return result;
           }
         }
       }
@@ -287,7 +305,7 @@ class CoordinateParser {
       match = fullUrl.match(REGEX_PATTERNS.centerParam);
       if (match) {
         const centerValue = decodeURIComponent(match[1]);
-        const parts = centerValue.split(/[%2F\/]/).filter(p => {
+        const parts = centerValue.split(/%2F|\//).filter(p => {
           const trimmed = p.trim();
           return trimmed !== '' && !isNaN(parseFloat(trimmed));
         });
@@ -298,22 +316,16 @@ class CoordinateParser {
           const p2 = parseFloat(parts[2]);
           
           if (p0 >= 0 && p0 <= 25 && p1 >= -180 && p1 <= 180 && p2 >= -90 && p2 <= 90) {
-            return {
-              zoom: p0,
-              lon: p1,
-              lat: p2,
-              bearing: parts[3] ? parseFloat(parts[3]) : 0,
-              pitch: parts[4] ? parseFloat(parts[4]) : 0
-            };
+            const result = { zoom: p0, lon: p1, lat: p2 };
+            if (parts.length >= 4) result.bearing = parseFloat(parts[3]);
+            if (parts.length >= 5) result.pitch = parseFloat(parts[4]);
+            return result;
           }
           if (p0 >= -180 && p0 <= 180 && p1 >= -90 && p1 <= 90) {
-            return {
-              lon: p0,
-              lat: p1,
-              zoom: p2,
-              bearing: parts[3] ? parseFloat(parts[3]) : 0,
-              pitch: parts[4] ? parseFloat(parts[4]) : 0
-            };
+            const result = { lon: p0, lat: p1, zoom: p2 };
+            if (parts.length >= 4) result.bearing = parseFloat(parts[3]);
+            if (parts.length >= 5) result.pitch = parseFloat(parts[4]);
+            return result;
           }
         } else if (parts.length >= 2) {
           return {
