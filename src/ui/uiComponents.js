@@ -122,14 +122,14 @@ class UIComponents {
     
     static renderContent(element, text, storedLabelColor = "") {
       if (!element) return;
-      
+
       let label = "";
       let coords = text;
-      
-      if (text.indexOf(" - ") !== -1) {
-        const parts = text.split(" - ");
-        label = parts[0].trim();
-        coords = parts.slice(1).join(" - ").trim();
+      const sep = " - ";
+      const idx = text.indexOf(sep);
+      if (idx !== -1) {
+        label = text.substring(0, idx).trim();
+        coords = text.substring(idx + sep.length).trim();
       }
       
       const labelColor = storedLabelColor || "";

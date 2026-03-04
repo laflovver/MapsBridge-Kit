@@ -43,6 +43,7 @@ body {
   --surface: #FFFFFF;
   --surface-hover: rgba(145, 154, 168, 0.60);
   
+  --white: #FFFFFF;
   --text: #4F5D75;
   --text-secondary: #4F5D75;
   --text-muted: rgba(145, 154, 168, 0.60);
@@ -194,6 +195,21 @@ body {
   letter-spacing: 0.8px;
   color: var(--text-secondary);
   margin: 0;
+}
+
+.section-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-sm) 0;
+}
+
+.section-hint kbd {
+  font-family: inherit;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 10px;
 }
 
 .format-toggle-btn {

@@ -43,7 +43,9 @@ class CoordinateExtractorApp {
           chrome.runtime.sendMessage('popup-ready').catch(() => {});
         }, 100);
       }
-      this.loadStoredCoordinates().catch(err => {
+      this.loadStoredCoordinates().then(() => {
+        this.updateSlotSelection();
+      }).catch(err => {
         console.error("Error loading stored coordinates:", err);
       });
 
@@ -108,8 +110,9 @@ class CoordinateExtractorApp {
     this.attachSlotEventListeners();
     this.attachEditFunctionality();
     this.setupScrollSnapping();
-    
+
     UIComponents.SlotRenderer.updateActiveIndicator();
+    this.updateSlotSelection();
   }
 
   handleInputFieldKeys(e) {
@@ -247,6 +250,7 @@ class CoordinateExtractorApp {
           const displayText = StorageManager.getSlotDisplayText(updatedSlot, slotIndex);
           UIComponents.SlotRenderer.renderContent(element, displayText, updatedSlot?.labelColor);
         }
+        UIComponents.Logger.log(`Location: ${shortName}`, "success");
       } else {
         const element = document.getElementById(`saved-coords-${slotIndex}`);
         if (element && slotAfterGeocoding) {
@@ -338,6 +342,36 @@ class CoordinateExtractorApp {
 
   getActiveSlotIndex() {
     return parseInt(this.activeSlotId.split('-').pop(), 10);
+  }
+
+  async saveCurrentToActiveSlot() {
+    const slotIndex = this.getActiveSlotIndex();
+    if (slotIndex === 0) {
+      UIComponents.Logger.log("Select slot 1, 2, or 3 then press S to save current coordinates", "info");
+      return;
+    }
+    const slot0 = await StorageManager.getSlot(0);
+    if (!slot0 || slot0.lat == null || slot0.lon == null) {
+      UIComponents.Logger.log("No coordinates in slot 0 to save", "warning");
+      return;
+    }
+    const currentSlot = await StorageManager.getSlot(slotIndex);
+    await StorageManager.setSlot(slotIndex, {
+      ...slot0,
+      name: "",
+      labelColor: currentSlot?.labelColor || "",
+      userNamed: false
+    });
+    const element = document.getElementById(`saved-coords-${slotIndex}`);
+    if (element) {
+      const savedSlot = await StorageManager.getSlot(slotIndex);
+      const displayText = StorageManager.getSlotDisplayText(savedSlot, slotIndex);
+      UIComponents.SlotRenderer.renderContent(element, displayText, savedSlot?.labelColor || "");
+    }
+    this.addLocationName(slot0, slotIndex).catch(err => {
+      console.error("Geocoding failed:", err);
+    });
+    UIComponents.Logger.log(`Saved to slot ${slotIndex}`, "success");
   }
 
   updateSlotSelection() {
@@ -469,18 +503,18 @@ class CoordinateExtractorApp {
           
           await StorageManager.setSlot(slotIndex, {
             ...coords,
-            name: currentSlot?.name || "",
+            name: "",
             labelColor: currentSlot?.labelColor || "",
-            userNamed: currentSlot?.userNamed || false
+            userNamed: false
           });
           
           const element = document.getElementById(this.activeSlotId);
           if (element) {
             const savedSlot = await StorageManager.getSlot(slotIndex);
             const displayText = StorageManager.getSlotDisplayText(savedSlot, slotIndex);
-            UIComponents.SlotRenderer.renderContent(element, displayText, currentSlot?.labelColor);
+            UIComponents.SlotRenderer.renderContent(element, displayText, savedSlot?.labelColor || "");
           }
-          
+
           if (slotIndex > 0 && coords.lat && coords.lon) {
             this.addLocationName(coords, slotIndex).catch(err => {
               console.error('Background geocoding failed:', err);
@@ -730,6 +764,11 @@ class CoordinateExtractorApp {
       if (this.isHotkey(e, ["KeyQ", "KeyЙ"], ["q", "й"])) {
         e.preventDefault();
         this.selectSlot(0);
+        return;
+      }
+      if (this.isHotkey(e, "KeyS", ["s", "ы"])) {
+        e.preventDefault();
+        this.saveCurrentToActiveSlot();
         return;
       }
       if (e.code === "Digit1" || (e.key || "").toLowerCase() === "1") {

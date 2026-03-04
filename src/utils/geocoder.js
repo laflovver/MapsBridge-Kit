@@ -102,7 +102,8 @@ class Geocoder {
         console.log('Geocoding request aborted');
         return null;
       }
-      console.error('Geocoding error:', error);
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error('Geocoding error:', msg);
       return null;
     }
   }
@@ -134,25 +135,17 @@ class Geocoder {
       
       if (data && data.display_name) {
         const result = this._formatOSMName(data);
-        console.log('OSM Geocoding result:', {
-          original: data.display_name,
-          address: data.address,
-          extratags: data.extratags,
-          namedetails: data.namedetails,
-          result: result,
-          landmark: this._findLandmark(data.address, data.extratags, data.namedetails),
-          streetInfo: this._getStreetInfo(data.address)
-        });
         return result;
       }
       
       return null;
     } catch (error) {
-      console.error('OSM geocoding error:', error);
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error('OSM geocoding error:', msg);
       return null;
     }
   }
-  
+
   static async _queryMapbox(lat, lon, signal = null) {
     try {
       // Mapbox API key required
@@ -188,17 +181,18 @@ class Geocoder {
       
       return null;
     } catch (error) {
-      console.error('Mapbox geocoding error:', error);
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error('Mapbox geocoding error:', msg);
       return null;
     }
   }
-  
+
   static _formatOSMName(data) {
-    const address = data.address || {};
-    const extratags = data.extratags || {};
-    const namedetails = data.namedetails || {};
-    
-    // 1. PRIORITY: Look for landmarks and important places
+    if (!data || typeof data !== 'object') return null;
+    const address = data.address && typeof data.address === 'object' ? data.address : {};
+    const extratags = data.extratags && typeof data.extratags === 'object' ? data.extratags : {};
+    const namedetails = data.namedetails && typeof data.namedetails === 'object' ? data.namedetails : {};
+
     const landmark = this._findLandmark(address, extratags, namedetails);
     if (landmark) {
       return landmark;
@@ -221,17 +215,24 @@ class Geocoder {
       return region;
     } else if (country) {
       return country;
-    } else {
-      return data.display_name.split(',')[0].trim();
     }
+    const displayName = data.display_name;
+    if (displayName && typeof displayName === 'string') {
+      return displayName.split(',')[0].trim();
+    }
+    return null;
   }
-  
+
   static _findLandmark(address, extratags, namedetails) {
-    // 1. First search for name in namedetails (most accurate)
+    address = address && typeof address === 'object' ? address : {};
+    extratags = extratags && typeof extratags === 'object' ? extratags : {};
+    namedetails = namedetails && typeof namedetails === 'object' ? namedetails : {};
+
     const nameKeys = ['name:en', 'name', 'name:official', 'name:short'];
     for (const key of nameKeys) {
-      if (namedetails[key] && namedetails[key].length > 2) {
-        return namedetails[key];
+      const val = namedetails[key];
+      if (typeof val === 'string' && val.length > 2) {
+        return val;
       }
     }
     
@@ -243,42 +244,42 @@ class Geocoder {
     ];
     
     for (const field of highPriorityFields) {
-      if (address[field] && address[field] !== 'yes' && address[field].length > 2) {
-        return address[field];
+      const val = address[field];
+      if (typeof val === 'string' && val !== 'yes' && val.length > 2) {
+        return val;
       }
     }
-    
-    // 3. Search in extratags by priority
+
     const landmarkTypes = [
       'name', 'name:en', 'name:official', 'name:short',
-      'tourism', 'amenity', 'leisure', 'sport', 'historic', 
-      'religion', 'shop', 'craft', 'office', 'healthcare', 
-      'education', 'building', 'natural', 'waterway', 
+      'tourism', 'amenity', 'leisure', 'sport', 'historic',
+      'religion', 'shop', 'craft', 'office', 'healthcare',
+      'education', 'building', 'natural', 'waterway',
       'aeroway', 'railway', 'highway'
     ];
-    
+
     for (const type of landmarkTypes) {
-      if (extratags[type] && typeof extratags[type] === 'string' && 
-          extratags[type].length > 2 && extratags[type] !== 'yes') {
-        return extratags[type];
+      const val = extratags[type];
+      if (typeof val === 'string' && val.length > 2 && val !== 'yes') {
+        return val;
       }
     }
-    
-    // 4. Search in other extratags fields
+
     for (const [key, value] of Object.entries(extratags)) {
-      if (typeof value === 'string' && value.length > 3 && 
-          !key.includes('website') && !key.includes('phone') && 
+      if (typeof value === 'string' && value.length > 3 &&
+          !key.includes('website') && !key.includes('phone') &&
           !key.includes('email') && !key.includes('opening_hours') &&
           !key.includes('capacity') && !key.includes('surface') &&
           value !== 'yes' && value !== 'no') {
         return value;
       }
     }
-    
+
     return null;
   }
-  
+
   static _getStreetInfo(address) {
+    if (!address || typeof address !== 'object') return null;
     const street = address.road || address.street || address.pedestrian || 
                    address.footway || address.path || address.cycleway;
     const houseNumber = address.house_number;
