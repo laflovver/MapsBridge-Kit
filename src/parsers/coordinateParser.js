@@ -58,14 +58,40 @@ class CoordinateParser {
     }
   }
   
+  static earthCameraMetersToMapsZoom(meters) {
+    const m = Math.max(1, Number(meters));
+    const z = 23 - Math.log10(m) * 4;
+    return Math.max(1, Math.min(22, Math.round(z)));
+  }
+
+  static clampGoogleMapsZoom(zoom) {
+    const z = Number(zoom);
+    if (!Number.isFinite(z) || z <= 0) return 15;
+    if (z <= 22) return Math.max(1, Math.min(22, Math.round(z)));
+    return this.earthCameraMetersToMapsZoom(z);
+  }
+
   static _extractFromPath(url) {
     const match = url.match(REGEX_PATTERNS.pathFormat);
     if (!match) return null;
-    
+
+    const lat = parseFloat(match[1]);
+    const lon = parseFloat(match[2]);
+    let zoom = parseFloat(match[3]);
+    const suffix = (match[4] || "").toLowerCase();
+
+    if (url.includes("earth.google.com")) {
+      if (suffix === "a" || suffix === "d" || zoom > 22) {
+        zoom = this.earthCameraMetersToMapsZoom(zoom);
+      } else {
+        zoom = Math.max(1, Math.min(22, zoom));
+      }
+    }
+
     return {
-      lat: parseFloat(match[1]),
-      lon: parseFloat(match[2]),
-      zoom: parseFloat(match[3]),
+      lat,
+      lon,
+      zoom,
       bearing: 0,
       pitch: 0
     };

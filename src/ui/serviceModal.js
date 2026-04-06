@@ -79,7 +79,7 @@ class ServiceModal {
       { name: 'Labs HD Roads', urlTemplate: 'https://labs.mapbox.com/hd-roads/?lightPreset=satellite#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', color: '#9C27B0', backgroundImage: 'https://labs.mapbox.com/favicon.ico', altUrlTemplate: 'https://labs.mapbox.com/hd-roads/?lightPreset=day&source=3dln#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', hasShiftModifier: true },
       { name: 'HD Roads Prod', urlTemplate: 'https://console.mapbox.com/studio/tilesets/mapbox.hd-road-v1-bounded/#{{zoom}}/{{lat}}/{{lon}}', color: '#00BCD4', backgroundImage: 'https://www.mapbox.com/favicon.ico', isTileset: true, altUrlTemplate: 'https://console.mapbox.com/studio/tilesets/mapbox.hd-road-v1-bounded-demo/#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}', hasShiftModifier: true },
       { name: '3DLN Demo Style', urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox-3dln/mbx-3d-line-navigation-demo-style.html?title=view&access_token=YOUR_MAPBOX_PUBLIC_TOKEN&zoomwheel=true&fresh=true#{{zoom}}/{{lat}}/{{lon}}', color: '#E91E63', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
-      { name: 'Google Maps', urlTemplate: 'https://earth.google.com/web/@{{lat}},{{lon}},{{zoom}}a,0y,0h,0t,0r', color: '#4285F4', backgroundImage: 'https://www.google.com/favicon.ico', altUrlTemplate: 'https://www.google.com/maps/@{{lat}},{{lon}},{{zoom}}z', hasShiftModifier: true },
+      { name: 'Google Maps', urlTemplate: 'https://earth.google.com/web/@{{lat}},{{lon}},{{zoom}}a,0y,0h,45t,0r', color: '#4285F4', backgroundImage: 'https://www.google.com/favicon.ico', altUrlTemplate: 'https://www.google.com/maps/@{{lat}},{{lon}},{{zoom}}z', hasShiftModifier: true },
       { name: 'Direction Debug', urlTemplate: 'https://console.mapbox.com/directions-debug/#map={{lon}},{{lat}},{{zoom}}z', color: '#00BCD4', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
       { name: '3D Model Slots', urlTemplate: 'https://sites.mapbox.com/mbx-3dbuilding-tools/#/model-slots/2022-10-10/map/?center={{zoom}}%2F{{lon}}%2F{{lat}}%2F{{bearing}}%2F{{pitch}}&env=prod&lights=day', color: '#9C27B0', backgroundImage: 'https://www.mapbox.com/favicon.ico', altUrlTemplate: 'https://sites.mapbox.com/mbx-3dbuilding-tools-demo/#/footprint/?map={{zoom}}%2F{{lon}}%2F{{lat}}', hasShiftModifier: true },
       { name: 'OpenStreetMap', urlTemplate: 'https://www.openstreetmap.org/#map={{zoom}}/{{lat}}/{{lon}}', color: '#7EBC6F', backgroundImage: 'https://www.openstreetmap.org/favicon.ico' },
@@ -700,11 +700,17 @@ class ServiceModal {
         return null;
       }
       
-      // Replace basic coordinates
+      let zoomVal = coords.zoom || 15;
+      if (template.includes('google.com/maps')) {
+        zoomVal = typeof CoordinateParser !== 'undefined' && CoordinateParser.clampGoogleMapsZoom
+          ? CoordinateParser.clampGoogleMapsZoom(coords.zoom)
+          : Math.max(1, Math.min(22, Math.round(Number(coords.zoom) || 15)));
+      }
+
       let url = template
         .replace(/\{\{lat\}\}/g, coords.lat || '')
         .replace(/\{\{lon\}\}/g, coords.lon || '')
-        .replace(/\{\{zoom\}\}/g, coords.zoom || '15');
+        .replace(/\{\{zoom\}\}/g, zoomVal);
       
       // Handle pitch and bearing for Mapbox-style URLs (#zoom/lat/lon/bearing/pitch)
       const hasBearing = coords.bearing !== undefined && coords.bearing !== null;

@@ -152,12 +152,14 @@ class BrowserManager {
     return {
       match: (url) => url.hostname.includes("google.com") && url.pathname.includes("/@"),
       transform: (url) => {
-        // Match the pattern /@lat,lon,zoom followed by optional parameters
         const match = currentUrlStr.match(/^(.+\/@)[^\/]+(.*)$/);
         if (match) {
           const prefix = match[1];
           const suffix = match[2];
-          const newCoordinatesSegment = `${coords.lat},${coords.lon},${coords.zoom}z`;
+          const z = (typeof CoordinateParser !== 'undefined' && CoordinateParser.clampGoogleMapsZoom)
+            ? CoordinateParser.clampGoogleMapsZoom(coords.zoom)
+            : Math.max(1, Math.min(22, Math.round(Number(coords.zoom) || 15)));
+          const newCoordinatesSegment = `${coords.lat},${coords.lon},${z}z`;
           return prefix + newCoordinatesSegment + suffix;
         }
         return null;
