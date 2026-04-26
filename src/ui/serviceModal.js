@@ -379,22 +379,24 @@ class ServiceModal {
   }
   
   getVisibleServicesOrder() {
+    const standardNames = this.standardServices.map(s => s.name);
+    const customNames = this.customServices.map(s => s.name);
+    const allKnown = [...standardNames, ...customNames];
+    const knownSet = new Set(allKnown);
+
     try {
       const saved = localStorage.getItem('mapsbridge_kit_services_order') || localStorage.getItem('coordinate_extractor_services_order');
       if (saved) {
         const order = JSON.parse(saved);
-        // Filter out hidden services
-        return order.filter(name => !this.hiddenServices.has(name));
+        const filtered = order.filter(name => !this.hiddenServices.has(name) && knownSet.has(name));
+        const missing = allKnown.filter(name => !filtered.includes(name) && !this.hiddenServices.has(name));
+        return [...filtered, ...missing];
       }
     } catch (error) {
       console.error('Error loading services order:', error);
     }
-    
-    // Default order: all standard services + custom (excluding hidden)
-    const allServices = [
-      ...this.standardServices.map(s => s.name),
-      ...this.customServices.map(s => s.name)
-    ];
+
+    const allServices = [...standardNames, ...customNames];
     return allServices.filter(name => !this.hiddenServices.has(name));
   }
   
@@ -526,43 +528,37 @@ class ServiceModal {
     leftContent.style.backgroundColor = 'transparent';
     
     // Add colored left border and background tint
-    this.getServiceColor(service.urlTemplate).then(color => {
-      if (color) {
-        btn.style.borderLeft = `3px solid ${color}`;
-        btn.style.paddingLeft = '11px';
-        
-        // Add subtle background tint overlay
-        const colorRGB = color.match(/\d+/g);
-        if (colorRGB && colorRGB.length >= 3) {
-          const r = parseInt(colorRGB[0]);
-          const g = parseInt(colorRGB[1]);
-          const b = parseInt(colorRGB[2]);
-          
-          const colorOverlay = document.createElement('div');
-          colorOverlay.style.position = 'absolute';
-          colorOverlay.style.width = '100%';
-          colorOverlay.style.height = '100%';
-          colorOverlay.style.top = '0';
-          colorOverlay.style.left = '0';
-          colorOverlay.style.background = `linear-gradient(to right, rgba(${r}, ${g}, ${b}, 0.08) 0%, transparent 30%, transparent 100%)`;
-          colorOverlay.style.pointerEvents = 'none';
-          colorOverlay.style.zIndex = '1';
-          btn.appendChild(colorOverlay);
-        }
-      } else {
-        // Fallback to service.color if available
-        if (service.color) {
-          btn.style.borderLeft = `3px solid ${service.color}`;
-          btn.style.paddingLeft = '11px';
-        }
-      }
-    }).catch(() => {
-      // Fallback to service.color if fetch fails
-      if (service.color) {
-        btn.style.borderLeft = `3px solid ${service.color}`;
-        btn.style.paddingLeft = '11px';
-      }
-    });
+    const applyBorderAndTint = (color) => {
+      if (!color) return;
+      btn.style.borderLeft = `3px solid ${color}`;
+      btn.style.paddingLeft = '11px';
+      if (!String(color).trim().startsWith('rgb')) return;
+      const colorRGB = color.match(/\d+/g);
+      if (!colorRGB || colorRGB.length < 3) return;
+      const r = parseInt(colorRGB[0], 10);
+      const g = parseInt(colorRGB[1], 10);
+      const b = parseInt(colorRGB[2], 10);
+      const colorOverlay = document.createElement('div');
+      colorOverlay.style.position = 'absolute';
+      colorOverlay.style.width = '100%';
+      colorOverlay.style.height = '100%';
+      colorOverlay.style.top = '0';
+      colorOverlay.style.left = '0';
+      colorOverlay.style.background = `linear-gradient(to right, rgba(${r}, ${g}, ${b}, 0.08) 0%, transparent 30%, transparent 100%)`;
+      colorOverlay.style.pointerEvents = 'none';
+      colorOverlay.style.zIndex = '1';
+      btn.appendChild(colorOverlay);
+    };
+
+    if (service.color) {
+      applyBorderAndTint(service.color);
+    } else {
+      this.getServiceColor(service.urlTemplate).then(color => {
+        applyBorderAndTint(color || service.color);
+      }).catch(() => {
+        if (service.color) applyBorderAndTint(service.color);
+      });
+    }
     
     
     if (isCustom) {
@@ -795,7 +791,7 @@ class ServiceModal {
       const urlTemplate = this.detectUrlTemplate(url);
 
       if (!urlTemplate) {
-        alert('Could not detect URL pattern. Please use a URL with {{lat}}, {{lon}}, {{zoom}} placeholders.');
+        alert('Could not detect coordinates in this link. Paste a map URL that contains lat/lon (or type the template yourself with {{lat}}, {{lon}}, and {{zoom}}).');
         return;
       }
 
@@ -809,14 +805,14 @@ class ServiceModal {
       let altUrlTemplate = null;
       if (altUrl) {
         altUrlTemplate = this.detectUrlTemplate(altUrl);
-
-        // Validate alternative URL if provided
-        if (altUrlTemplate) {
-          const altUrlValidation = ServiceValidator.validateServiceUrl(altUrlTemplate);
-          if (!altUrlValidation.valid) {
-            alert('Alternative URL error: ' + altUrlValidation.error);
-            return;
-          }
+        if (!altUrlTemplate) {
+          alert('Could not detect coordinates in the alternative URL. Add {{lat}}, {{lon}}, and {{zoom}} in that field, or leave it empty.');
+          return;
+        }
+        const altUrlValidation = ServiceValidator.validateServiceUrl(altUrlTemplate);
+        if (!altUrlValidation.valid) {
+          alert('Alternative URL error: ' + altUrlValidation.error);
+          return;
         }
       }
 
@@ -824,7 +820,8 @@ class ServiceModal {
         name: name,
         urlTemplate: urlTemplate,
         altUrlTemplate: altUrlTemplate,
-        hasShiftModifier: !!altUrl
+        hasShiftModifier: !!altUrl,
+        color: '#FF9800'
       };
 
       this.customServices.push(service);
@@ -850,52 +847,54 @@ class ServiceModal {
   }
   
   detectUrlTemplate(url) {
-    // Try to detect common patterns
-    const patterns = [
-      // Google Maps style: /@lat,lon,zoomz
-      { regex: /@([\d\.-]+),([\d\.-]+),(\d+)z/, template: url.replace(/@[\d\.-]+,[\d\.-]+,\d+z/, '@{{lat}},{{lon}},{{zoom}}z') },
-      
-      // OSM style: #map=zoom/lat/lon
-      { regex: /#map=(\d+)\/([\d\.-]+)\/([\d\.-]+)/, template: url.replace(/#map=\d+\/[\d\.-]+\/[\d\.-]+/, '#map={{zoom}}/{{lat}}/{{lon}}') },
-      
-      // Bing style: cp=lat~lon&lvl=zoom
-      { regex: /cp=([\d\.-]+)~([\d\.-]+)&lvl=(\d+)/, template: url.replace(/cp=[\d\.-]+~[\d\.-]+&lvl=\d+/, 'cp={{lat}}~{{lon}}&lvl={{zoom}}') },
-      
-      // Yandex style: ll=lon,lat&z=zoom
-      { regex: /ll=([\d\.-]+),([\d\.-]+)&z=(\d+)/, template: url.replace(/ll=[\d\.-]+,[\d\.-]+&z=\d+/, 'll={{lon}},{{lat}}&z={{zoom}}') },
-      
-      // Generic pattern: lat=...&lng=...&z=...
-      { regex: /lat=([\d\.-]+)[&?]/i, template: url.replace(/lat=[\d\.-]+/gi, 'lat={{lat}}').replace(/lng=[\d\.-]+/gi, 'lng={{lon}}').replace(/[?&]z=(\d+)/g, '&z={{zoom}}') },
-      
-      // Try to replace any decimal numbers in URL paths
-      { regex: /(\d+\.?\d*)/, template: url.replace(/(\d+\.?\d*)/g, '{{coords}}') }
-    ];
-    
-    for (const pattern of patterns) {
-      if (pattern.regex.test(url)) {
-        // Transform the specific numbers to template
-        let template = url;
-        template = template.replace(/([\d\.-]+)\s*,\s*([\d\.-]+)\s*,\s*(\d+)z/g, '{{lat}},{{lon}},{{zoom}}z');
-        template = template.replace(/#map=(\d+)\/([\d\.-]+)\/([\d\.-]+)/g, '#map={{zoom}}/{{lat}}/{{lon}}');
-        template = template.replace(/cp=([\d\.-]+)~([\d\.-]+)&lvl=(\d+)/g, 'cp={{lat}}~{{lon}}&lvl={{zoom}}');
-        template = template.replace(/ll=([\d\.-]+),([\d\.-]+)&z=(\d+)/g, 'll={{lon}},{{lat}}&z={{zoom}}');
-        template = template.replace(/lat=([\d\.-]+)/gi, 'lat={{lat}}');
-        template = template.replace(/lng=([\d\.-]+)/gi, 'lng={{lon}}');
-        template = template.replace(/[?&]z=(\d+)/g, '&z={{zoom}}');
-        
-        if (template.includes('{{')) {
-          return template;
-        }
-      }
+    const trimmed = (url || '').trim();
+    if (!trimmed) return null;
+
+    if (trimmed.includes('{{lat}}') && trimmed.includes('{{lon}}')) {
+      return trimmed;
     }
-    
-    // Fallback: just replace numbers with placeholders
-    let template = url;
-    template = template.replace(/(-?\d+\.\d+)/g, '{{lat}}');
-    template = template.replace(/(-?\d+\.\d+)/g, '{{lon}}');
-    template = template.replace(/\/(\d+)\//g, '/{{zoom}}/');
-    
-    return template;
+
+    let template = trimmed;
+
+    if (/@([\d.-]+),([\d.-]+),(\d+)z\b/.test(template)) {
+      template = template.replace(/@[\d.-]+,[\d.-]+,\d+z\b/, '@{{lat}},{{lon}},{{zoom}}z');
+      if (template.includes('{{lat}}') && template.includes('{{lon}}')) return template;
+    }
+
+    if (/@([\d.-]+),([\d.-]+),([\d.]+)a\b/.test(template)) {
+      template = template.replace(/@[\d.-]+,[\d.-]+,[\d.]+a\b/, '@{{lat}},{{lon}},{{zoom}}a');
+      if (template.includes('{{lat}}') && template.includes('{{lon}}')) return template;
+    }
+
+    if (/#map=\d+\/[\d.-]+\/[\d.-]+/.test(template)) {
+      template = template.replace(/#map=(\d+)\/([\d.-]+)\/([\d.-]+)/g, '#map={{zoom}}/{{lat}}/{{lon}}');
+      if (template.includes('{{lat}}') && template.includes('{{lon}}')) return template;
+    }
+
+    const hashZoomLatLon = trimmed.match(/#(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)(?:\/|$)/);
+    if (hashZoomLatLon && !trimmed.includes('#map=')) {
+      return trimmed.replace(/#(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)/, '#{{zoom}}/{{lat}}/{{lon}}');
+    }
+
+    if (/cp=[\d.-]+~[\d.-]+&lvl=\d+/.test(template)) {
+      template = template.replace(/cp=([\d.-]+)~([\d.-]+)&lvl=(\d+)/, 'cp={{lat}}~{{lon}}&lvl={{zoom}}');
+      if (template.includes('{{lat}}') && template.includes('{{lon}}')) return template;
+    }
+
+    if (/ll=[\d.-]+,[\d.-]+&z=\d+/.test(template)) {
+      template = template.replace(/ll=([\d.-]+),([\d.-]+)&z=(\d+)/, 'll={{lon}},{{lat}}&z={{zoom}}');
+      if (template.includes('{{lat}}') && template.includes('{{lon}}')) return template;
+    }
+
+    if (/[?&]lat=[\d.-]+/i.test(template)) {
+      template = template
+        .replace(/lat=([\d.-]+)/gi, 'lat={{lat}}')
+        .replace(/lng=([\d.-]+)/gi, 'lng={{lon}}')
+        .replace(/([?&])z=(\d+)/g, '$1z={{zoom}}');
+      if (template.includes('{{lat}}') && template.includes('{{lon}}')) return template;
+    }
+
+    return null;
   }
   
   deleteCustomService(name) {

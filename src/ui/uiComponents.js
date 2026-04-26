@@ -136,40 +136,55 @@ class UIComponents {
       
       element.innerHTML = "";
       
+      const primary = document.createElement("div");
+      primary.className = "slot-primary";
+
       if (label) {
         const cleanLabel = label.replace(/^\.\.\.\s*/, '');
-        
+
         const indicatorSpan = document.createElement("span");
         indicatorSpan.className = "slot-indicator";
         indicatorSpan.textContent = "...";
-        element.appendChild(indicatorSpan);
-        
+        primary.appendChild(indicatorSpan);
+
         const labelSpan = document.createElement("span");
         labelSpan.className = "slot-label";
         labelSpan.textContent = cleanLabel;
         if (labelColor) {
           labelSpan.style.color = labelColor;
         }
-        element.appendChild(labelSpan);
-        
+        primary.appendChild(labelSpan);
+
         element.dataset.coordinates = coords;
+
+        const reveal = document.createElement("div");
+        reveal.className = "slot-coords-reveal";
+        reveal.textContent = coords;
+        element.appendChild(primary);
+        element.appendChild(reveal);
       } else {
         const coordsSpan = document.createElement("span");
         coordsSpan.className = "slot-coords";
         coordsSpan.textContent = coords;
-        element.appendChild(coordsSpan);
+        primary.appendChild(coordsSpan);
+        element.appendChild(primary);
+
+        if (coords.length > 42) {
+          const reveal = document.createElement("div");
+          reveal.className = "slot-coords-reveal slot-coords-reveal--extra";
+          reveal.textContent = coords;
+          element.appendChild(reveal);
+        }
       }
-      
-      const hiddenCoordsSpan = document.createElement("span");
-      hiddenCoordsSpan.className = "slot-coords-hidden";
-      hiddenCoordsSpan.textContent = coords;
-      element.appendChild(hiddenCoordsSpan);
-      
-      const slotItem = element.closest('.saved-slot-item');
-      if (slotItem) {
-        slotItem.addEventListener('mouseenter', () => {
-          hiddenCoordsSpan.scrollLeft = hiddenCoordsSpan.scrollWidth;
-        });
+
+      const slotItem = element.closest(".saved-slot-item");
+      const revealEl = element.querySelector(".slot-coords-reveal");
+      if (slotItem && revealEl) {
+        slotItem.onmouseenter = () => {
+          revealEl.scrollLeft = revealEl.scrollWidth;
+        };
+      } else if (slotItem) {
+        slotItem.onmouseenter = null;
       }
       
       element.scrollTop = 0;

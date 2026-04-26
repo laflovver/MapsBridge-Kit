@@ -135,15 +135,36 @@ body {
   margin: 0;
 }
 
-.hotkey-badge {
-  background: rgba(145, 154, 168, 0.60);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 5px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
+.header-info {
+  flex-shrink: 0;
+}
+
+.header-open-hotkey-btn {
+  gap: 6px;
+  min-width: 0;
+}
+
+.header-open-hotkey-keys {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  min-width: 1.5em;
+}
+
+.header-open-hotkey-btn--inactive {
+  cursor: default;
+}
+
+.header-open-hotkey-btn--inactive:hover {
+  transform: none;
+  background: rgba(145, 154, 168, 0.6);
   box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.25) inset;
+}
+
+.header-open-hotkey-btn--inactive:active {
+  transform: none;
 }
 
 /* === APP BODY === */
@@ -724,13 +745,13 @@ button {
 
 .saved-slot-item {
   position: relative;
-  height: var(--slot-height);
+  min-height: var(--slot-height);
   background: var(--surface);
-  border: 1.5px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: var(--border-radius);
   display: flex;
-  align-items: center;
-  transition: all var(--transition-slow);
+  align-items: stretch;
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
   cursor: pointer;
   box-shadow: var(--shadow-sm);
 }
@@ -738,99 +759,89 @@ button {
 .saved-slot-item:hover {
   border-color: var(--border-focus);
   box-shadow: var(--shadow);
-  transform: translateY(-1px);
 }
 
-/* Hidden coordinates that appear on hover */
-.slot-coords-hidden {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 54px; /* Stop before edit button (right: 54px) */
-  bottom: 0;
-  padding: var(--space-md);
-  padding-right: var(--space-xs); /* Small padding before edit button */
-  background: var(--white);
-  border-radius: var(--border-radius);
-  font-family: 'Roboto Mono', monospace;
-  font-size: 11px;
-  color: var(--text);
+.slot-primary {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
+  gap: 4px;
+  min-height: 20px;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.slot-primary .slot-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slot-primary .slot-indicator {
+  flex-shrink: 0;
+}
+
+.slot-primary .slot-coords {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slot-coords-reveal {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-muted);
+  max-height: 0;
   opacity: 0;
-  transform: translateY(10px);
-  transition: all 0.3s ease;
-  z-index: 10;
+  overflow: hidden;
+  padding-top: 0;
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
   white-space: nowrap;
   overflow-x: auto;
   overflow-y: hidden;
-  text-overflow: unset;
-  min-width: 0; /* Allow flex item to shrink */
-  box-sizing: border-box;
-  /* Native scroll behavior like cli-output */
-  scroll-behavior: auto;
-  scroll-snap-type: none;
+  border-top: 1px solid transparent;
+  transition:
+    max-height 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.18s ease,
+    padding-top 0.2s ease,
+    border-color 0.2s ease;
 }
 
-.saved-slot-item:hover .slot-coords-hidden {
+.saved-slot-item:hover .slot-coords-reveal {
+  max-height: 3.25em;
   opacity: 1;
-  transform: translateY(0);
-  animation: quickSlideUp 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  padding-top: 4px;
+  border-top-color: rgba(145, 154, 168, 0.35);
 }
-
-/* Hide all slot content on hover to show full coordinates */
-.saved-slot-item:hover .slot-coords,
-.saved-slot-item:hover .slot-indicator,
-.saved-slot-item:hover .slot-label,
-.saved-slot-item:hover .hotkey-icon {
-  opacity: 0;
-  transform: translateY(-5px);
-  transition: all 0.1s ease-out;
-}
-
-/* Keep edit button visible on hover so it can be clicked */
-.saved-slot-item:hover .edit-btn {
-  opacity: 1;
-  z-index: 15;
-  pointer-events: auto;
-}
-
-/* Show hidden coordinates on hover for slots with labels */
-.saved-slot-item:hover .slot-coords-hidden {
-  opacity: 1;
-  transform: translateY(0);
-  z-index: 10;
-}
-
-/* Hide scrollbar for hidden coordinates but keep scroll functionality */
-.slot-coords-hidden::-webkit-scrollbar {
-  display: none;
-}
-
-.slot-coords-hidden {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-/* Slot 0 hidden coordinates - no special padding needed as coordinates take full width */
 
 .saved-slot-item.selected-saved {
   border-color: var(--primary);
-  background: var(--primary-light);
-  box-shadow: var(--shadow-md), 0 0 0 3px rgba(102, 126, 234, 0.1);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-md), 0 0 0 2px rgba(145, 154, 168, 0.2);
 }
 
 .slot-inner {
   flex: 1;
-  padding: var(--space-md);
-  padding-right: 120px; /* Increased padding to avoid overlap with buttons */ /* Space for hotkey and edit buttons */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px var(--space-md);
+  padding-right: 120px;
   font-family: 'Roboto Mono', monospace;
   font-size: 11px;
   color: var(--text);
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
   position: relative;
+  min-width: 0;
 }
 
 /* Slot 0 doesn't have edit button - less padding */
@@ -844,38 +855,27 @@ button {
   right: 32px;
   top: 50%;
   transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  background: var(--primary);
-  color: var(--white);
-  border-radius: 3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background: rgba(145, 154, 168, 0.22);
+  color: var(--text);
+  border: 1px solid rgba(145, 154, 168, 0.45);
+  border-radius: 4px;
   font-family: 'Roboto Mono', monospace;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.7;
-  transition: opacity var(--transition-normal);
-  backdrop-filter: blur(4px);
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
-}
-
-.hotkey-icon::before {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  z-index: -1;
-  backdrop-filter: blur(6px);
+  opacity: 0.85;
+  transition: opacity var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
 }
 
 .saved-slot-item:hover .hotkey-icon {
   opacity: 1;
+  background: rgba(145, 154, 168, 0.28);
+  border-color: rgba(145, 154, 168, 0.55);
 }
 
 .edit-btn {
@@ -883,42 +883,30 @@ button {
   right: 54px;
   top: 50%;
   transform: translateY(-50%);
-  height: 16px;
-  padding: 0 var(--space-xs);
-  background: var(--text-light);
-  color: var(--white);
-  border-radius: 3px;
+  height: 18px;
+  padding: 0 7px;
+  background: rgba(79, 93, 117, 0.12);
+  color: var(--text);
+  border: 1px solid rgba(145, 154, 168, 0.5);
+  border-radius: 4px;
   font-family: 'Roboto Mono', monospace;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  opacity: 0.6;
-  transition: opacity var(--transition-normal);
+  opacity: 0.75;
+  transition: opacity var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
   text-transform: lowercase;
-  backdrop-filter: blur(4px);
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
-  z-index: 15; /* Ensure edit button is above coordinates on hover */
-  pointer-events: auto; /* Ensure button is clickable */
-}
-
-.edit-btn::before {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  z-index: -1;
-  backdrop-filter: blur(6px);
+  z-index: 5;
+  pointer-events: auto;
 }
 
 .edit-btn:hover {
   opacity: 1;
+  background: rgba(79, 93, 117, 0.18);
+  border-color: rgba(145, 154, 168, 0.65);
 }
 
 /* === ANIMATIONS === */
@@ -944,21 +932,6 @@ button {
 }
 
 /* === ENHANCED ANIMATIONS === */
-@keyframes quickSlideUp {
-  0% { 
-    opacity: 0; 
-    transform: translateY(8px) scale(0.99); 
-  }
-  60% { 
-    opacity: 1; 
-    transform: translateY(-2px) scale(1.01); 
-  }
-  100% { 
-    opacity: 1; 
-    transform: translateY(0) scale(1); 
-  }
-}
-
 @keyframes smoothSlideDown {
   0% { 
     opacity: 1; 
@@ -1101,7 +1074,7 @@ button {
   100% { transform: translateX(0); }
 }
 
-.slot-coords-hidden:active {
+.slot-coords-reveal:active {
   animation: scrollBounce 0.3s ease-out;
 }
 

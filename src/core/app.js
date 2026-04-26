@@ -27,6 +27,13 @@ class CoordinateExtractorApp {
         throw new Error("UIComponents is not defined");
       }
       UIComponents.init();
+      this.bindHeaderShortcutBadgeClick();
+      this.updateHeaderShortcutBadge().catch(() => {});
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          this.updateHeaderShortcutBadge().catch(() => {});
+        }
+      });
 
       await this.loadSavedFormat();
       this.setupEventListeners();
@@ -70,7 +77,62 @@ class CoordinateExtractorApp {
       }
     }
   }
-  
+
+  bindHeaderShortcutBadgeClick() {
+    const el = document.getElementById("header-shortcut-badge");
+    if (!el || this._headerShortcutBadgeClickBound) return;
+    this._headerShortcutBadgeClickBound = true;
+    el.addEventListener("click", () => {
+      if (el.dataset.shortcutState !== "unset") return;
+      const url = "chrome://extensions/shortcuts";
+      if (chrome.tabs && chrome.tabs.create) {
+        chrome.tabs.create({ url }).catch(() => {});
+      }
+    });
+  }
+
+  async updateHeaderShortcutBadge() {
+    const el = document.getElementById("header-shortcut-badge");
+    const keysEl = document.getElementById("header-shortcut-keys");
+    if (!el || !keysEl) return;
+    let shortcut = "";
+    try {
+      if (chrome.commands && chrome.commands.getAll) {
+        const commands = await chrome.commands.getAll();
+        const row = commands.find((c) => c.name === "open-extension");
+        if (row && row.shortcut) {
+          shortcut = row.shortcut;
+        }
+      }
+      if (!shortcut) {
+        const stored = await chrome.storage.local.get("mapsbridgeOpenShortcut");
+        shortcut = stored.mapsbridgeOpenShortcut || "";
+      }
+    } catch (_) {
+      shortcut = "";
+    }
+
+    if (shortcut) {
+      el.dataset.shortcutState = "set";
+      el.classList.add("header-open-hotkey-btn--inactive");
+      keysEl.textContent = shortcut;
+      el.removeAttribute("title");
+      el.setAttribute("aria-label", `Open extension: ${shortcut}`);
+      el.tabIndex = -1;
+    } else {
+      el.dataset.shortcutState = "unset";
+      el.classList.remove("header-open-hotkey-btn--inactive");
+      keysEl.textContent = "Set";
+      el.title =
+        "Opens chrome://extensions/shortcuts — assign “Open Kvietačka” to any free key.";
+      el.setAttribute(
+        "aria-label",
+        "Set shortcut to open this extension (Chrome shortcuts page)."
+      );
+      el.tabIndex = 0;
+    }
+  }
+
   async getActiveSlotCoordinates() {
     if (this.activeSlotId && this.activeSlotId !== "saved-coords-0") {
       const slotIndex = parseInt(this.activeSlotId.split("-").pop(), 10);
