@@ -2,6 +2,45 @@ const POPUP_PAGE = chrome.runtime.getURL("popup.html");
 const POPUP_W = 680;
 const POPUP_H = 720;
 
+function popupPageUrlForSourceWindow(sourceWindowId) {
+  if (sourceWindowId == null) {
+    return POPUP_PAGE;
+  }
+  return `${POPUP_PAGE}?sourceWin=${String(sourceWindowId)}`;
+}
+
+async function getSourceMapWindowId() {
+  try {
+    const w0 = await chrome.windows.getLastFocused();
+    if (w0 && w0.type === "normal" && w0.id != null) {
+      return w0.id;
+    }
+  } catch (e) {
+    // ignore
+  }
+  try {
+    const w1 = await chrome.windows.getLastFocused({ windowTypes: ["normal"] });
+    if (w1 && w1.id != null) {
+      return w1.id;
+    }
+  } catch (e) {
+    // ignore
+  }
+  try {
+    const all = await chrome.windows.getAll({ windowTypes: ["normal"] });
+    const f = all.find((x) => x.focused);
+    if (f && f.id != null) {
+      return f.id;
+    }
+    if (all[0] && all[0].id != null) {
+      return all[0].id;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return null;
+}
+
 function focusExistingExtensionWindow() {
   return new Promise((resolve) => {
     chrome.windows.getAll({ populate: true }, (windows) => {
@@ -12,7 +51,10 @@ function focusExistingExtensionWindow() {
       let found = null;
       for (const w of windows) {
         for (const t of w.tabs || []) {
-          if (t.url === POPUP_PAGE) {
+          if (!t || !t.url) {
+            continue;
+          }
+          if (t.url === POPUP_PAGE || t.url.indexOf(POPUP_PAGE + "?") === 0) {
             found = t;
             break;
           }
@@ -36,10 +78,11 @@ function focusExistingExtensionWindow() {
   });
 }
 
-function openExtensionPopupWindow() {
+function openExtensionPopupWindow(sourceWindowId) {
+  const url = popupPageUrlForSourceWindow(sourceWindowId);
   chrome.windows.create(
     {
-      url: POPUP_PAGE,
+      url: url,
       type: "popup",
       width: POPUP_W,
       height: POPUP_H,
@@ -47,16 +90,24 @@ function openExtensionPopupWindow() {
     },
     (created) => {
       if (chrome.runtime.lastError || !created) {
-        chrome.tabs.create({ url: POPUP_PAGE, active: true });
+        chrome.tabs.create({ url, active: true });
       }
     }
   );
 }
 
 async function openExtensionFromShortcut() {
+  const sourceId = await getSourceMapWindowId();
+  try {
+    if (sourceId != null && chrome.storage && chrome.storage.session) {
+      await chrome.storage.session.set({ mapsbridgeSourceWindowId: sourceId });
+    }
+  } catch (e) {
+    console.error("openExtensionFromShortcut session", e);
+  }
   const focused = await focusExistingExtensionWindow();
   if (!focused) {
-    openExtensionPopupWindow();
+    openExtensionPopupWindow(sourceId);
   }
 }
 
@@ -80,7 +131,36 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
+async function getActiveMapTabInWindow(sourceWindowId) {
+  if (sourceWindowId == null) {
+    return { url: null, tabId: null };
+  }
+  let list = await chrome.tabs.query({ active: true, windowId: sourceWindowId });
+  let tab = list && list[0];
+  if (!tab) {
+    const w = await chrome.windows.get(sourceWindowId, { populate: true });
+    if (w && w.tabs && w.tabs.length) {
+      tab = w.tabs.find((t) => t.active) || w.tabs[0];
+    }
+  }
+  if (!tab) {
+    return { url: null, tabId: null };
+  }
+  return { url: tab.url, tabId: tab.id };
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message && message.type === "get-active-map-tab" && message.sourceWindowId != null) {
+    (async () => {
+      try {
+        const r = await getActiveMapTabInWindow(message.sourceWindowId);
+        sendResponse({ url: r.url, tabId: r.tabId });
+      } catch (e) {
+        sendResponse({ url: null, tabId: null });
+      }
+    })();
+    return true;
+  }
   if (message === "popup-ready" || message.type === "popup-ready") {
     chrome.action.setBadgeText({ text: "" });
     sendResponse({ status: "ok" });

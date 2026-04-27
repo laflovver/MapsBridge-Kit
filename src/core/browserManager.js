@@ -1,11 +1,90 @@
 "use strict";
 
 class BrowserManager {
-  
+  static async _getSourceWindowIdForMapTab() {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    if (window.mapsbridgeSourceWindowId != null) {
+      return window.mapsbridgeSourceWindowId;
+    }
+    if (typeof window.location === "object" && window.location.search) {
+      try {
+        const p = new URLSearchParams(window.location.search);
+        const s = p.get("sourceWin");
+        if (s) {
+          const n = parseInt(s, 10);
+          if (!isNaN(n) && n > 0) {
+            window.mapsbridgeSourceWindowId = n;
+            return n;
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    if (!chrome.storage || !chrome.storage.session) {
+      return null;
+    }
+    try {
+      const s = await chrome.storage.session.get("mapsbridgeSourceWindowId");
+      const id = s.mapsbridgeSourceWindowId;
+      if (id == null) {
+        return null;
+      }
+      await chrome.storage.session.remove("mapsbridgeSourceWindowId");
+      window.mapsbridgeSourceWindowId = id;
+      return id;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static async _getActiveMapTab() {
+    const windowId = await BrowserManager._getSourceWindowIdForMapTab();
+    if (windowId == null) {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      return tabs && tabs.length ? tabs[0] : null;
+    }
+    let list = await chrome.tabs.query({ active: true, windowId: windowId });
+    if (list && list[0]) {
+      return list[0];
+    }
+    try {
+      const w = await chrome.windows.get(windowId, { populate: true });
+      if (w && w.tabs && w.tabs.length) {
+        return w.tabs.find((t) => t.active) || w.tabs[0] || null;
+      }
+    } catch (e) {
+      // ignore
+    }
+    if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      const r = await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          { type: "get-active-map-tab", sourceWindowId: windowId },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              resolve(null);
+            } else {
+              resolve(response);
+            }
+          }
+        );
+      });
+      if (r && r.url && (r.tabId != null)) {
+        return { id: r.tabId, url: r.url, windowId, active: true };
+      }
+    }
+    return null;
+  }
+
   static async getActiveTabUrl() {
     try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      return tabs && tabs.length ? tabs[0].url : null;
+      const tab = await BrowserManager._getActiveMapTab();
+      if (tab && tab.url) {
+        return tab.url;
+      }
+      return null;
     } catch (error) {
       console.error("Error getting active tab URL:", error);
       return null;
@@ -14,13 +93,12 @@ class BrowserManager {
 
   static async updateActiveTabWithCoordinates(coords) {
     try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tabs || !tabs.length) {
+      const tab = await BrowserManager._getActiveMapTab();
+      if (!tab) {
         console.error("No active tab for URL update.");
         return false;
       }
 
-      const tab = tabs[0];
       const currentUrlStr = tab.url;
       if (!currentUrlStr) {
         console.error("Tab URL is undefined.");
