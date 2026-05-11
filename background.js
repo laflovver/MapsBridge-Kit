@@ -1,6 +1,8 @@
+importScripts("src/jira/jiraBackground.js");
+
 const POPUP_PAGE = chrome.runtime.getURL("popup.html");
-const POPUP_W = 680;
-const POPUP_H = 720;
+const POPUP_W = 760;
+const POPUP_H = 820;
 
 function popupPageUrlForSourceWindow(sourceWindowId) {
   if (sourceWindowId == null) {
@@ -96,20 +98,56 @@ function openExtensionPopupWindow(sourceWindowId) {
   );
 }
 
-async function openExtensionFromShortcut() {
-  const sourceId = await getSourceMapWindowId();
-  try {
-    if (sourceId != null && chrome.storage && chrome.storage.session) {
-      await chrome.storage.session.set({ mapsbridgeSourceWindowId: sourceId });
-    }
-  } catch (e) {
-    console.error("openExtensionFromShortcut session", e);
+async function openActionPopupForWindow(windowId) {
+  if (!chrome.action || typeof chrome.action.openPopup !== "function") {
+    return false;
   }
-  const focused = await focusExistingExtensionWindow();
-  if (!focused) {
-    openExtensionPopupWindow(sourceId);
+  try {
+    await chrome.action.setPopup({ popup: "popup.html" });
+    const opts = windowId != null ? { windowId } : {};
+    await chrome.action.openPopup(opts);
+    return true;
+  } catch (e) {
+    console.warn("openPopup failed", e);
+    try {
+      await chrome.action.setPopup({ popup: "" });
+    } catch (_) {}
+    return false;
   }
 }
+
+async function openExtensionPopupAttachedToWindow(windowId) {
+  const ok = await openActionPopupForWindow(windowId);
+  if (ok) {
+    return;
+  }
+
+  try {
+    if (windowId != null && chrome.storage && chrome.storage.session) {
+      await chrome.storage.session.set({
+        mapsbridgeSourceWindowId: windowId
+      });
+    }
+  } catch (e) {
+    console.error("session set for fallback popup", e);
+  }
+
+  const focused = await focusExistingExtensionWindow();
+  if (!focused) {
+    openExtensionPopupWindow(windowId);
+  }
+}
+
+async function openExtensionFromShortcut() {
+  const sourceId = await getSourceMapWindowId();
+  await openExtensionPopupAttachedToWindow(sourceId);
+}
+
+chrome.action.onClicked.addListener((tab) => {
+  const wid =
+    tab && tab.windowId != null ? tab.windowId : null;
+  void openExtensionPopupAttachedToWindow(wid);
+});
 
 chrome.commands.onCommand.addListener((command) => {
   if (command === "open-extension") {
@@ -157,6 +195,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ url: r.url, tabId: r.tabId });
       } catch (e) {
         sendResponse({ url: null, tabId: null });
+      }
+    })();
+    return true;
+  }
+  if (message && message.type === "resolve-model-slot" && message.issueKey) {
+    (async () => {
+      try {
+        const result = await handleResolveModelSlot(message.issueKey);
+        sendResponse(result);
+      } catch (e) {
+        sendResponse({
+          ok: false,
+          error: "exception",
+          message: e && e.message ? String(e.message) : "Resolver failed"
+        });
       }
     })();
     return true;

@@ -81,7 +81,8 @@ class ServiceModal {
       { name: '3DLN Demo Style', urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox-3dln/mbx-3d-line-navigation-demo-style.html?title=view&access_token=YOUR_MAPBOX_PUBLIC_TOKEN&zoomwheel=true&fresh=true#{{zoom}}/{{lat}}/{{lon}}', color: '#E91E63', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
       { name: 'Google Maps', urlTemplate: 'https://earth.google.com/web/@{{lat}},{{lon}},{{zoom}}a,0y,0h,45t,0r', color: '#4285F4', backgroundImage: 'https://www.google.com/favicon.ico', altUrlTemplate: 'https://www.google.com/maps/@{{lat}},{{lon}},{{zoom}}z', hasShiftModifier: true },
       { name: 'Direction Debug', urlTemplate: 'https://console.mapbox.com/directions-debug/#map={{lon}},{{lat}},{{zoom}}z', color: '#00BCD4', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
-      { name: '3D Model Slots', urlTemplate: 'https://sites.mapbox.com/mbx-3dbuilding-tools/#/model-slots/2022-10-10/map/?center={{zoom}}%2F{{lon}}%2F{{lat}}%2F{{bearing}}%2F{{pitch}}&env=prod&lights=day', color: '#9C27B0', backgroundImage: 'https://www.mapbox.com/favicon.ico', altUrlTemplate: 'https://sites.mapbox.com/mbx-3dbuilding-tools-demo/#/footprint/?map={{zoom}}%2F{{lon}}%2F{{lat}}', hasShiftModifier: true },
+      { name: 'Streets Debug', urlTemplate: 'https://hey.mapbox.com/streets-debug/#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}/mapbox://styles/mapbox-geodata/cl6p8s7ik000615tjums0jh83/false', color: '#5C6BC0', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
+      { name: 'Model Slot', urlTemplate: 'https://sites.mapbox.com/mbx-3dbuilding-tools/#/model-slots/2022-10-10/map/?center={{zoom}}%2F{{lon}}%2F{{lat}}%2F{{bearing}}%2F{{pitch}}&env=prod&lights=day', color: '#9C27B0', backgroundImage: 'https://www.mapbox.com/favicon.ico', altUrlTemplate: 'https://sites.mapbox.com/mbx-3dbuilding-tools-demo/#/footprint/?map={{zoom}}%2F{{lon}}%2F{{lat}}', hasShiftModifier: true },
       { name: 'OpenStreetMap', urlTemplate: 'https://www.openstreetmap.org/#map={{zoom}}/{{lat}}/{{lon}}', color: '#7EBC6F', backgroundImage: 'https://www.openstreetmap.org/favicon.ico' },
       { name: 'Bing Maps', urlTemplate: 'https://www.bing.com/maps?cp={{lat}}~{{lon}}&lvl={{zoom}}', color: '#008373', backgroundImage: 'https://www.bing.com/favicon.ico' },
       { name: 'Yandex Maps', urlTemplate: 'https://yandex.by/maps/?ll={{lon}},{{lat}}&z={{zoom}}', color: '#FF0000', backgroundImage: 'https://yandex.by/favicon.ico' },
@@ -172,10 +173,12 @@ class ServiceModal {
         }
       }
 
-      if (serviceName === '3D Model Slots') {
-        const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn)');
+      if (serviceName === 'Model Slot') {
+        const nameSpan = btn.querySelector(
+          'span:not(.service-hotkey-badge):not(.service-delete-btn)'
+        );
         if (nameSpan) {
-          nameSpan.textContent = shiftHeld ? 'Footprint' : '3D Model Slots';
+          nameSpan.textContent = shiftHeld ? 'Footprint' : 'Model Slot';
         }
       }
     });
@@ -387,7 +390,9 @@ class ServiceModal {
     try {
       const saved = localStorage.getItem('mapsbridge_kit_services_order') || localStorage.getItem('coordinate_extractor_services_order');
       if (saved) {
-        const order = JSON.parse(saved);
+        const order = JSON.parse(saved).map((name) =>
+          name === "3D Model Slots" ? "Model Slot" : name
+        );
         const filtered = order.filter(name => !this.hiddenServices.has(name) && knownSet.has(name));
         const missing = allKnown.filter(name => !filtered.includes(name) && !this.hiddenServices.has(name));
         return [...filtered, ...missing];
@@ -420,7 +425,10 @@ class ServiceModal {
     try {
       const saved = localStorage.getItem('mapsbridge_kit_hidden_services') || localStorage.getItem('coordinate_extractor_hidden_services');
       if (saved) {
-        this.hiddenServices = new Set(JSON.parse(saved));
+        const names = JSON.parse(saved).map((n) =>
+          n === "3D Model Slots" ? "Model Slot" : n
+        );
+        this.hiddenServices = new Set(names);
       }
     } catch (error) {
       console.error('Error loading hidden services:', error);
@@ -459,8 +467,12 @@ class ServiceModal {
       serviceName.textContent = service.name;
     }
     serviceName.style.flex = '1';
+    serviceName.style.minWidth = '0';
+    serviceName.style.overflow = 'hidden';
+    serviceName.style.textOverflow = 'ellipsis';
+    serviceName.style.whiteSpace = 'nowrap';
     leftContent.appendChild(serviceName);
-    
+
     // Add visual tileset marker if applicable
     if (service.isTileset) {
       const tilesetMarker = document.createElement('span');
@@ -477,7 +489,7 @@ class ServiceModal {
     btn.dataset.serviceName = service.name;
     
     // Mark buttons with additional functionality (Shift modifier)
-    if (service.name === '3D Buildings Box' || service.name === '3D Model Slots' || service.name === 'Labs HD Roads' || service.hasShiftModifier) {
+    if (service.name === '3D Buildings Box' || service.name === 'Model Slot' || service.name === 'Labs HD Roads' || service.hasShiftModifier) {
       btn.classList.add('has-shift-modifier');
     }
     
@@ -570,7 +582,7 @@ class ServiceModal {
     btn.addEventListener('click', (e) => {
       this.openService(service, e.shiftKey);
     });
-    
+
     // Add delete button for all services
     const deleteBtn = document.createElement('span');
     deleteBtn.textContent = '×';
@@ -583,8 +595,60 @@ class ServiceModal {
     
     return btn;
   }
+
+  async getActiveMapTabUrlString() {
+    if (typeof BrowserManager !== "undefined" && BrowserManager.getActiveTabUrl) {
+      try {
+        const u = await BrowserManager.getActiveTabUrl();
+        if (u) return u;
+      } catch (e) {}
+    }
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      return tabs[0] && tabs[0].url ? tabs[0].url : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  async jiraIssueKeyFromActiveMapTab() {
+    try {
+      const url = await this.getActiveMapTabUrlString();
+      return typeof extractJiraIssueKeyFromUrl === "function"
+        ? extractJiraIssueKeyFromUrl(url || "") || ""
+        : "";
+    } catch (e) {
+      return "";
+    }
+  }
   
+  async openModelSlotResolverFromContext(keyMaybe) {
+    const key =
+      keyMaybe != null ? keyMaybe : await this.jiraIssueKeyFromActiveMapTab();
+    const base = chrome.runtime.getURL("model-slot-resolve.html");
+    const target = key
+      ? `${base}?key=${encodeURIComponent(key)}`
+      : base;
+    await chrome.tabs.create({ url: target, active: true });
+    if (typeof UIComponents !== "undefined" && UIComponents.Logger) {
+      UIComponents.Logger.log(
+        key
+          ? `Opening Model Slot resolver for ${key}`
+          : "Opening Model Slot resolver (add ?key= or open from a Jira issue tab)",
+        key ? "success" : "info"
+      );
+    }
+  }
+
   async openService(service, shiftKey = false) {
+    if (service.name === "Model Slot" && !shiftKey) {
+      const jiraKey = await this.jiraIssueKeyFromActiveMapTab();
+      if (jiraKey) {
+        await this.openModelSlotResolverFromContext(jiraKey);
+        return;
+      }
+    }
+
     // Always get fresh coordinates before opening service to avoid stale data
     const freshCoords = await this.getCurrentCoordinates();
     if (!freshCoords || !freshCoords.lat || !freshCoords.lon) {
@@ -594,10 +658,19 @@ class ServiceModal {
     
     // Update currentCoords with fresh values
     this.currentCoords = freshCoords;
+    const coordsForService = { ...this.currentCoords };
+    if (service.name === 'Streets Debug') {
+      if (coordsForService.bearing === undefined || coordsForService.bearing === null) {
+        coordsForService.bearing = 0;
+      }
+      if (coordsForService.pitch === undefined || coordsForService.pitch === null) {
+        coordsForService.pitch = 0;
+      }
+    }
     
     UIComponents.Logger.log(`Opening ${service.name} with coordinates: ${freshCoords.lat}, ${freshCoords.lon}, zoom: ${freshCoords.zoom}`, "info");
     
-    let url = this.buildServiceUrl(service.urlTemplate, this.currentCoords);
+    let url = this.buildServiceUrl(service.urlTemplate, coordsForService);
     
     if (service.name === '3D Buildings Box' && shiftKey) {
       const urlObj = new URL(url);
@@ -605,24 +678,24 @@ class ServiceModal {
       url = urlObj.toString();
     }
     
-    if (service.name === '3D Model Slots' && shiftKey && service.altUrlTemplate) {
-      url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
+    if (service.name === 'Model Slot' && shiftKey && service.altUrlTemplate) {
+      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService);
     }
 
     if (service.name === 'HD Roads Prod' && shiftKey && service.altUrlTemplate) {
-      url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
+      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService);
     }
     
     if (service.name === 'Google Maps' && shiftKey && service.altUrlTemplate) {
-      url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
+      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService);
     }
     
     if (service.name === 'Labs HD Roads' && shiftKey && service.altUrlTemplate) {
-      url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
+      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService);
     }
     
     if (shiftKey && service.altUrlTemplate && this.customServices.includes(service)) {
-      url = this.buildServiceUrl(service.altUrlTemplate, this.currentCoords);
+      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService);
     }
     
     if (url) {

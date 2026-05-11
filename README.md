@@ -1,4 +1,4 @@
-# 🧭 MapsBridge Kit v3.3.0
+# 🧭 MapsBridge Kit v3.4.2
 
 A powerful Chrome extension that automatically extracts geographic coordinates (latitude, longitude, zoom, pitch, bearing) from map URLs. Works with most popular mapping services.
 
@@ -16,6 +16,7 @@ A powerful Chrome extension that automatically extracts geographic coordinates (
 - **🔄 Alternative Service URLs**: Hold Shift and click to access alternative service versions with color-coded indicators
 - **🎨 Service Visual Identity**: Colored borders and background images based on service branding
 - **✨ Visual Feedback**: Icon rotation animation shows when extension is loading
+- **🔗 Jira RAVE3D → Model Slot**: With Jira API credentials, the resolver loads the issue and opens the **direct** Model Slot URL when it finds `…/mbx-3dbuilding-tools/#/model-slots/…/uuid/model/…` (or `#/model-slots/…` only) in description, summary, or optional custom fields. If no link is found, it falls back to the filtered list URL with `jira_issue_id`. Bookmark `chrome-extension://<id>/model-slot-resolve.html?key=RAVE3D-103`.
 
 ---
 
@@ -45,6 +46,16 @@ When you open the popup, the extension automatically extracts coordinates from t
 - Query parameters: `?lat=X&lon=Y&zoom=Z`
 - Special formats: `ll=`, `cp=`, `center=`
 - CLI format: `--lon X --lat Y --zoom Z`
+
+### Jira Model Slot resolver (RAVE3D)
+
+1. Save **email**, **API token**, and optionally comma-separated **custom field IDs** if the slot link lives only in a custom field.
+2. The resolver requests `summary`, `description`, and those fields, then looks for a link like  
+   `https://sites.mapbox.com/mbx-3dbuilding-tools/#/model-slots/DATE/uuid/model/id`  
+   or the same path as a hash-only fragment. If found, that URL opens directly.
+3. If no link is in the issue, it opens the list view with `jira_issue_id` (and optional `jira_summary` when enabled).
+4. Without credentials, only the filtered list URL (no deep link) can be built from the key.
+5. From a `mapbox.atlassian.net/browse/KEY` tab, click **3D Model Slots** (no Shift) to run the resolver; **Shift** still opens **Footprint** with coordinates.
 
 ### Storage Slots
 - **Slot 0**: Always shows coordinates from the current URL (read-only)

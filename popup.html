@@ -36,7 +36,7 @@
         </div>
         <div class="header-info">
           <button type="button" id="header-shortcut-badge" class="btn-secondary btn-compact header-open-hotkey-btn" title="" aria-label="">
-            Open
+            <span class="header-open-hotkey-label">Open hotkey</span>
             <span id="header-shortcut-keys" class="button-hotkey header-open-hotkey-keys">Set</span>
           </button>
         </div>
@@ -87,7 +87,6 @@
               <span class="button-hotkey">v</span>
             </button>
           </div>
-          <p class="section-hint">Select slot 1–3, press <kbd>S</kbd> to save current coords</p>
           <div class="saved-slots">
             <div class="slot-indicator" id="slot-indicator"></div>
             <div class="saved-slot-item" id="slot-saved-coords-0">
@@ -119,6 +118,23 @@
             <span class="go-arrow">→</span>
             <span class="button-hotkey">g</span>
           </button>
+        </div>
+
+        <div class="panel-section" id="jira-settings-panel">
+          <div class="section-header">
+            <h2 class="section-title">Jira (RAVE3D resolver)</h2>
+          </div>
+          <p style="font-size:10px;color:var(--text-muted);margin-bottom:8px;line-height:1.35;">
+            Email and API token load issue fields (summary, description, rendered HTML, ADF links) to find a Model Slot deep link. If none, Building Tools opens with a list filtered by <code style="font-size:9px;">jira_issue_id</code> (works with a board tab: <code style="font-size:9px;">selectedIssue=</code>).
+          </p>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <input type="email" id="jira-email" placeholder="Email" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--border-radius);font-size:11px;box-sizing:border-box;" />
+            <input type="password" id="jira-api-token" placeholder="API token" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--border-radius);font-size:11px;box-sizing:border-box;" />
+            <div style="display:flex;align-items:center;gap:10px;">
+              <button type="button" id="jira-save" class="btn-secondary btn-compact">Save settings</button>
+              <span id="jira-saved-hint" style="font-size:10px;color:var(--text-muted);display:none;">Saved.</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -156,8 +172,10 @@
   
   <!-- UI components -->
   <script src="src/ui/uiComponents.js"></script>
+  <script src="src/utils/jiraUrlIssueKey.js"></script>
   <script src="src/ui/serviceModal.js"></script>
   
+  <script src="src/jira/jiraSettings.js"></script>
   <!-- Main application -->
   <script src="src/core/app.js"></script>
 </body>

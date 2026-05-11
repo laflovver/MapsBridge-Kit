@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Model Slot resolver</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .resolve-wrap { max-width: 520px; margin: 24px auto; padding: 0 16px; }
+    .resolve-wrap h1 { font-size: 14px; margin-bottom: 12px; }
+    .resolve-wrap p { font-size: 12px; margin-bottom: 8px; color: var(--text-secondary); }
+    .resolve-wrap .err { color: #b71c1c; display: none; margin-top: 8px; }
+    .resolve-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+    .resolve-form input { flex: 1; min-width: 140px; padding: 8px; border: 1px solid var(--border); border-radius: var(--border-radius); font-family: inherit; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <div class="resolve-wrap">
+    <h1>Model Slot resolver</h1>
+    <p id="resolve-status">Loading…</p>
+    <p id="resolve-err" class="err" role="alert"></p>
+    <div class="resolve-form" id="resolve-manual" style="display: none;">
+      <input type="text" id="resolve-key-input" placeholder="RAVE3D-103" autocomplete="off" spellcheck="false" aria-label="Issue key" />
+      <button type="button" id="resolve-go" class="btn-primary">Resolve</button>
+    </div>
+    <p style="font-size: 10px; margin-top: 16px; color: var(--text-muted);">
+      Save Jira email + API token in the extension popup to load the issue and find a deep Model Slot link. Without credentials, only the Building Tools list filtered by issue key opens. From a board, pick the issue first so the URL includes <code style="font-size: 9px;">selectedIssue=</code>.
+    </p>
+  </div>
+  <script src="src/jira/modelSlotResolvePage.js"></script>
+</body>
+</html>

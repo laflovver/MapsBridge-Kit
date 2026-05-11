@@ -50,11 +50,13 @@ class CoordinateExtractorApp {
           chrome.runtime.sendMessage('popup-ready').catch(() => {});
         }, 100);
       }
-      this.loadStoredCoordinates().then(() => {
-        this.updateSlotSelection();
-      }).catch(err => {
+
+      this.activeSlotId = "saved-coords-0";
+      try {
+        await this.loadStoredCoordinates();
+      } catch (err) {
         console.error("Error loading stored coordinates:", err);
-      });
+      }
 
       if (typeof ServiceModal !== 'undefined') {
         this.serviceModal = new ServiceModal();
@@ -65,9 +67,11 @@ class CoordinateExtractorApp {
         });
       }
 
-      this.extractCurrentTabCoordinates().catch(err => {
+      try {
+        await this.extractCurrentTabCoordinates();
+      } catch (err) {
         console.error("Error extracting coordinates:", err);
-      });
+      }
 
     } catch (error) {
       console.error("App initialization error:", error);
@@ -83,7 +87,6 @@ class CoordinateExtractorApp {
     if (!el || this._headerShortcutBadgeClickBound) return;
     this._headerShortcutBadgeClickBound = true;
     el.addEventListener("click", () => {
-      if (el.dataset.shortcutState !== "unset") return;
       const url = "chrome://extensions/shortcuts";
       if (chrome.tabs && chrome.tabs.create) {
         chrome.tabs.create({ url }).catch(() => {});
@@ -112,22 +115,26 @@ class CoordinateExtractorApp {
       shortcut = "";
     }
 
+    const shortcutsHint =
+      "Opens chrome://extensions/shortcuts — assign or change the “Open Kvietačka” command.";
     if (shortcut) {
       el.dataset.shortcutState = "set";
-      el.classList.add("header-open-hotkey-btn--inactive");
+      el.classList.add("header-open-hotkey-btn--has-shortcut");
       keysEl.textContent = shortcut;
-      el.removeAttribute("title");
-      el.setAttribute("aria-label", `Open extension: ${shortcut}`);
-      el.tabIndex = -1;
-    } else {
-      el.dataset.shortcutState = "unset";
-      el.classList.remove("header-open-hotkey-btn--inactive");
-      keysEl.textContent = "Set";
-      el.title =
-        "Opens chrome://extensions/shortcuts — assign “Open Kvietačka” to any free key.";
+      el.title = shortcutsHint;
       el.setAttribute(
         "aria-label",
-        "Set shortcut to open this extension (Chrome shortcuts page)."
+        `Shortcut to open this extension: ${shortcut}. Click to change it in Chrome shortcuts.`
+      );
+      el.tabIndex = 0;
+    } else {
+      el.dataset.shortcutState = "unset";
+      el.classList.remove("header-open-hotkey-btn--has-shortcut");
+      keysEl.textContent = "Set";
+      el.title = shortcutsHint;
+      el.setAttribute(
+        "aria-label",
+        "Shortcut to open this extension — not set. Click to open Chrome shortcuts and assign “Open Kvietačka”."
       );
       el.tabIndex = 0;
     }
@@ -150,6 +157,26 @@ class CoordinateExtractorApp {
     return null;
   }
 
+
+  async persistCoordsToSavedSlot(slotIndex, coords) {
+    if (slotIndex <= 0 || !coords || coords.lat == null || coords.lon == null) {
+      return;
+    }
+    const currentSlot = await StorageManager.getSlot(slotIndex);
+    await StorageManager.setSlot(slotIndex, {
+      ...coords,
+      name: "",
+      labelColor: currentSlot?.labelColor || "",
+      userNamed: false
+    });
+    const element = document.getElementById(`saved-coords-${slotIndex}`);
+    if (element) {
+      const savedSlot = await StorageManager.getSlot(slotIndex);
+      const displayText = StorageManager.getSlotDisplayText(savedSlot, slotIndex);
+      UIComponents.SlotRenderer.renderContent(element, displayText, savedSlot?.labelColor || "");
+    }
+    this.addLocationName(coords, slotIndex).catch(() => {});
+  }
 
   async loadStoredCoordinates() {
     const slots = await StorageManager.getAllSlots();
@@ -366,6 +393,7 @@ class CoordinateExtractorApp {
   selectSlot(slotIndex) {
     this.activeSlotId = `saved-coords-${slotIndex}`;
     this.updateSlotSelection();
+    chrome.storage.local.set({ mapsbridgeActiveSlotIndex: slotIndex }).catch(() => {});
   }
 
   async clearActiveSlot() {
@@ -404,36 +432,6 @@ class CoordinateExtractorApp {
 
   getActiveSlotIndex() {
     return parseInt(this.activeSlotId.split('-').pop(), 10);
-  }
-
-  async saveCurrentToActiveSlot() {
-    const slotIndex = this.getActiveSlotIndex();
-    if (slotIndex === 0) {
-      UIComponents.Logger.log("Select slot 1, 2, or 3 then press S to save current coordinates", "info");
-      return;
-    }
-    const slot0 = await StorageManager.getSlot(0);
-    if (!slot0 || slot0.lat == null || slot0.lon == null) {
-      UIComponents.Logger.log("No coordinates in slot 0 to save", "warning");
-      return;
-    }
-    const currentSlot = await StorageManager.getSlot(slotIndex);
-    await StorageManager.setSlot(slotIndex, {
-      ...slot0,
-      name: "",
-      labelColor: currentSlot?.labelColor || "",
-      userNamed: false
-    });
-    const element = document.getElementById(`saved-coords-${slotIndex}`);
-    if (element) {
-      const savedSlot = await StorageManager.getSlot(slotIndex);
-      const displayText = StorageManager.getSlotDisplayText(savedSlot, slotIndex);
-      UIComponents.SlotRenderer.renderContent(element, displayText, savedSlot?.labelColor || "");
-    }
-    this.addLocationName(slot0, slotIndex).catch(err => {
-      console.error("Geocoding failed:", err);
-    });
-    UIComponents.Logger.log(`Saved to slot ${slotIndex}`, "success");
   }
 
   updateSlotSelection() {
@@ -548,51 +546,33 @@ class CoordinateExtractorApp {
       UIComponents.Utils.animateButton(pasteBtn);
       
       const text = await UIComponents.Clipboard.read();
-      if (!text) return;
-
-      const coords = CoordinateParser.parseFromAnyFormat(text);
-      if (coords) {
-        const formatted = this.outputFormat === 'url'
-          ? CoordinateParser.formatToUrlFormat(coords)
-          : CoordinateParser.formatToCli(coords);
-        
-        UIComponents.CoordinateDisplay.display(coords, this.outputFormat);
-        this.clipboardCoords = coords;
-        
-        if (this.activeSlotId && this.activeSlotId !== "saved-coords-0") {
-          const slotIndex = parseInt(this.activeSlotId.split("-").pop(), 10);
-          const currentSlot = await StorageManager.getSlot(slotIndex);
-          
-          await StorageManager.setSlot(slotIndex, {
-            ...coords,
-            name: "",
-            labelColor: currentSlot?.labelColor || "",
-            userNamed: false
-          });
-          
-          const element = document.getElementById(this.activeSlotId);
-          if (element) {
-            const savedSlot = await StorageManager.getSlot(slotIndex);
-            const displayText = StorageManager.getSlotDisplayText(savedSlot, slotIndex);
-            UIComponents.SlotRenderer.renderContent(element, displayText, savedSlot?.labelColor || "");
-          }
-
-          if (slotIndex > 0 && coords.lat && coords.lon) {
-            this.addLocationName(coords, slotIndex).catch(err => {
-              console.error('Background geocoding failed:', err);
-            });
-          }
-        } else {
-          const element = document.getElementById("saved-coords-0");
-          if (element) {
-            UIComponents.SlotRenderer.renderContent(element, formatted);
-          }
-        }
-        
-        UIComponents.Logger.log("Coordinates pasted from clipboard", "success");
-      } else {
-        UIComponents.Logger.log("Failed to parse coordinates", "error");
+      let coords = text ? CoordinateParser.parseFromAnyFormat(text) : null;
+      if (!coords && this.clipboardCoords) {
+        coords = this.clipboardCoords;
       }
+      if (!coords) {
+        UIComponents.Logger.log("Failed to parse coordinates", "error");
+        return;
+      }
+
+      const formatted = this.outputFormat === 'url'
+        ? CoordinateParser.formatToUrlFormat(coords)
+        : CoordinateParser.formatToCli(coords);
+      
+      UIComponents.CoordinateDisplay.display(coords, this.outputFormat);
+      this.clipboardCoords = coords;
+      
+      const slotIndex = this.getActiveSlotIndex();
+      if (slotIndex > 0) {
+        await this.persistCoordsToSavedSlot(slotIndex, coords);
+      } else {
+        const element = document.getElementById("saved-coords-0");
+        if (element) {
+          UIComponents.SlotRenderer.renderContent(element, formatted);
+        }
+      }
+      
+      UIComponents.Logger.log("Coordinates pasted from clipboard", "success");
     });
   }
 
@@ -826,11 +806,6 @@ class CoordinateExtractorApp {
       if (this.isHotkey(e, ["KeyQ", "KeyЙ"], ["q", "й"])) {
         e.preventDefault();
         this.selectSlot(0);
-        return;
-      }
-      if (this.isHotkey(e, "KeyS", ["s", "ы"])) {
-        e.preventDefault();
-        this.saveCurrentToActiveSlot();
         return;
       }
       if (e.code === "Digit1" || (e.key || "").toLowerCase() === "1") {
