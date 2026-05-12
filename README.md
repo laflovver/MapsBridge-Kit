@@ -16,7 +16,7 @@ A Chrome extension that extracts geographic coordinates (latitude, longitude, zo
 - **🔄 Alternative Service URLs**: Hold Shift and click to access alternative service versions with color-coded indicators
 - **🎨 Service Visual Identity**: Colored borders and background images based on service branding
 - **✨ Visual Feedback**: Icon rotation animation shows when extension is loading
-- **🔗 Jira → Model Slot**: With **Jira email + API token** saved in the popup, the resolver loads the issue from `mapbox.atlassian.net`, resolves **summary** (plain text or ADF) for list filters, and can open Building Tools as follows:
+- **🔗 Jira → Model Slot**: With **Jira email + [API token](https://id.atlassian.com/manage-profile/security/api-tokens)** saved in the popup, the resolver loads the issue from `mapbox.atlassian.net`, resolves **summary** (plain text or ADF) for list filters, and can open Building Tools as follows:
   - **Direct slot URL** only when a valid Model Slot deep link appears in the **issue summary** (not description or comments—avoids opening another issue’s slot). The opened URL also gets `jira_issue_id`, `jira_summary`, and `name` on the hash for context.
   - Otherwise a **filtered list** with `jira_issue_id`, `jira_summary`, `name`, `jira_issue_browse_url`, and optional `jira_issue_cloud_id`. A content script on `sites.mapbox.com/mbx-3dbuilding-tools` matches the correct table row (issue key + optional name/summary) before auto-navigating.
   - You can enter an issue **key** (`RAVE3D-103`) or a **numeric cloud id** (3+ digits) on `model-slot-resolve.html` or via `?key=…`. Without credentials, only a minimal filter URL from the key is possible (no API summary).
@@ -53,7 +53,7 @@ When you open the popup, the extension automatically extracts coordinates from t
 
 ### Jira Model Slot resolver
 
-1. In the popup, under **Jira (RAVE3D resolver)**, save **email** and **API token** (used for `GET /rest/api/3/issue/…` with `fields=summary,*navigable` and `expand=renderedFields`).
+1. In the popup, under **Jira (RAVE3D resolver)**, save **email** and **[API token](https://id.atlassian.com/manage-profile/security/api-tokens)** (used for `GET /rest/api/3/issue/…` with `fields=summary,*navigable` and `expand=renderedFields`).
 2. **Deep link** is used only if a single unambiguous Model Slot URL is found in **summary** (including ADF link marks). Links taken only from description/comments are **not** used for direct open, so you are not sent to another issue’s slot by mistake.
 3. Any opened deep URL gets **Jira context** appended on the hash: `jira_issue_id`, `jira_summary`, `name` (plus existing query keys such as `center` if present).
 4. If there is no suitable deep link, the extension opens the **model-slots list** hash with the same filter parameters so Building Tools can narrow rows; the bundled `mbxModelSlotsAutoDeepLink.js` content script picks the row that matches the issue key and optional **name / jira_summary** from the URL.
