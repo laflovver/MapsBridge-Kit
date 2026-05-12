@@ -24,7 +24,7 @@
       <button type="button" id="resolve-go" class="btn-primary">Resolve</button>
     </div>
     <p style="font-size: 10px; margin-top: 16px; color: var(--text-muted);">
-      With Jira credentials the resolver loads summary and adds it to the Model Slot list filter as <code style="font-size: 9px;">name</code> and <code style="font-size: 9px;">jira_summary</code> so the correct row is easier to find. You can enter a key or a numeric cloud issue id. Save email and <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener noreferrer" style="color:var(--text);text-decoration:underline;">API token</a> in the extension popup.
+      Email and <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener noreferrer" style="color:var(--text);text-decoration:underline;">API token</a> in the extension popup load issue fields (summary, description, rendered HTML, ADF links) to find a Model Slot deep link. If none, Building Tools opens with a list filtered by <code style="font-size: 9px;">jira_issue_id</code> (works with a board tab: <code style="font-size: 9px;">selectedIssue=</code>). You can enter a key or a numeric cloud issue id below.
     </p>
   </div>
   <script src="src/jira/modelSlotResolvePage.js"></script>
