@@ -4,7 +4,6 @@
   const MBT_PATH_PREFIX = "/mbx-3dbuilding-tools";
   const POLL_MS = 250;
   const TIMEOUT_MS = 60000;
-  const RETRY_HASH_MS = 6000;
 
   let runId = 0;
 
@@ -22,6 +21,32 @@
     const key = parseHashQuery(hash).get("jira_issue_id") || "";
     const u = key.trim().toUpperCase();
     return /^[A-Z][A-Z0-9]*-\d+$/.test(u) ? u : "";
+  }
+
+  function nameFilterFromHash(hash) {
+    const p = parseHashQuery(hash || "");
+    const raw = (p.get("name") || p.get("jira_summary") || "").trim();
+    if (!raw) return "";
+    return raw.replace(/\+/g, " ").trim();
+  }
+
+  function rowMatchesNameFilter(tr, nameFilter) {
+    const n = (nameFilter || "").trim();
+    if (!n) return true;
+    const t = (tr.textContent || "").replace(/\s+/g, " ").toUpperCase();
+    return t.includes(n.toUpperCase());
+  }
+
+  function cellIssueKeyMatchesCellText(text, keyUpper) {
+    const k = (keyUpper || "").trim().toUpperCase();
+    const raw = (text || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+    if (!k || !raw) return false;
+    const u = raw.toUpperCase();
+    if (u === k) return true;
+    const tokens = u.match(/\b[A-Z][A-Z0-9]+-\d+\b/g);
+    if (!tokens || tokens.indexOf(k) < 0) return false;
+    const esc = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp("(^|[^A-Z0-9])" + esc + "([^0-9A-Z]|$)").test(u);
   }
 
   function isDeepSlotHash(h) {
@@ -84,18 +109,6 @@
     );
   }
 
-  function stripSummaryFromHash(hash) {
-    const h = hash || "";
-    const q = h.indexOf("?");
-    if (q < 0) return h;
-    const path = h.slice(0, q);
-    const params = parseHashQuery(h);
-    if (!params.has("jira_summary")) return h;
-    params.delete("jira_summary");
-    const tail = params.toString();
-    return tail ? `${path}?${tail}` : path;
-  }
-
   function navigateHash(newHash) {
     const frag = newHash.startsWith("#") ? newHash.slice(1) : newHash;
     const cur = location.hash.replace(/^#/, "");
@@ -137,31 +150,50 @@
     );
   }
 
-  function findRowsForIssue(issueKey) {
-    const upper = issueKey.toUpperCase();
+  function findRowsForIssue(issueKey, nameFilter) {
+    const k = (issueKey || "").trim().toUpperCase();
+    if (!k) return [];
+    const seen = new Set();
     const out = [];
-    const cells = document.querySelectorAll(
-      '[data-test="table-cell_jira_issue_id"]'
-    );
-    for (let i = 0; i < cells.length; i++) {
-      const cell = cells[i];
-      if (!(cell.textContent || "").toUpperCase().includes(upper)) continue;
-      const tr = cell.closest("tr");
-      if (tr && !rowLooksLikeHeader(tr)) out.push(tr);
-    }
-    if (out.length) return out;
+    const pushTr = (tr) => {
+      if (!tr || rowLooksLikeHeader(tr) || seen.has(tr)) return;
+      seen.add(tr);
+      out.push(tr);
+    };
 
-    const tbodies = document.querySelectorAll("table tbody");
-    for (let t = 0; t < tbodies.length; t++) {
-      const trs = tbodies[t].querySelectorAll("tr");
-      for (let r = 0; r < trs.length; r++) {
-        const tr = trs[r];
+    const cellSelectors = [
+      '[data-test="table-cell_jira_issue_id"]',
+      '[data-test="table-cell_jira-issue-id"]',
+      '[data-test*="jira_issue_id"]'
+    ];
+    for (let s = 0; s < cellSelectors.length; s++) {
+      const cells = document.querySelectorAll(cellSelectors[s]);
+      for (let i = 0; i < cells.length; i++) {
+        const cell = cells[i];
+        if (!cellIssueKeyMatchesCellText(cell.textContent || "", k)) continue;
+        pushTr(cell.closest("tr"));
+      }
+      if (out.length) break;
+    }
+
+    if (!out.length) {
+      const dataRows = document.querySelectorAll("table tbody tr");
+      for (let r = 0; r < dataRows.length; r++) {
+        const tr = dataRows[r];
         if (rowLooksLikeHeader(tr)) continue;
-        if (!(tr.textContent || "").toUpperCase().includes(upper)) continue;
-        out.push(tr);
+        const cells = tr.querySelectorAll("[data-test]");
+        for (let c = 0; c < cells.length; c++) {
+          const dt = cells[c].getAttribute("data-test") || "";
+          if (!/jira_issue|issue_id|jira-issue/i.test(dt)) continue;
+          if (cellIssueKeyMatchesCellText(cells[c].textContent || "", k)) {
+            pushTr(tr);
+            break;
+          }
+        }
       }
     }
-    return out;
+
+    return out.filter((tr) => rowMatchesNameFilter(tr, nameFilter));
   }
 
   function activateAnchor(a) {
@@ -191,7 +223,26 @@
   }
 
   function resolveRowNavigation(row) {
+    const deepHashes = [];
     const links = row.querySelectorAll("a[href]");
+    for (let i = 0; i < links.length; i++) {
+      const a = links[i];
+      const raw = a.getAttribute("href") || "";
+      if (!raw.includes("model-slots") || !raw.includes("model")) continue;
+      const hash = hrefToSlotHash(raw);
+      if (hash && isDeepSlotHash(hash)) {
+        deepHashes.push(hash);
+      }
+    }
+    const uniqDeep = [...new Set(deepHashes)];
+    if (uniqDeep.length === 1) {
+      navigateHash(uniqDeep[0]);
+      return true;
+    }
+    if (uniqDeep.length > 1) {
+      return false;
+    }
+
     for (let i = 0; i < links.length; i++) {
       const a = links[i];
       const raw = a.getAttribute("href") || "";
@@ -230,37 +281,20 @@
     return false;
   }
 
-  function tryAutoNavigate(issueKey, gen) {
+  function tryAutoNavigate(issueKey, nameFilter, gen) {
     if (gen !== runId) return false;
 
-    const rows = findRowsForIssue(issueKey);
+    const rows = findRowsForIssue(issueKey, nameFilter);
     for (let r = 0; r < rows.length; r++) {
       if (resolveRowNavigation(rows[r])) return true;
     }
 
-    const fallback = document.querySelectorAll("a[href]");
-    const upper = issueKey.toUpperCase();
-    for (let i = 0; i < fallback.length; i++) {
-      const a = fallback[i];
-      const raw = a.getAttribute("href") || "";
-      if (!raw.includes("model-slots") || !raw.includes("/model/")) continue;
-      const tr = a.closest("tr");
-      if (!tr) continue;
-      if (rowLooksLikeHeader(tr)) continue;
-      if (!(tr.textContent || "").toUpperCase().includes(upper)) continue;
-      const hash = hrefToSlotHash(raw);
-      if (hash && isDeepSlotHash(hash)) {
-        navigateHash(hash);
-        return true;
-      }
-    }
     return false;
   }
 
-  function runSession(issueKey) {
+  function runSession(issueKey, nameFilter) {
     const gen = ++runId;
     const started = Date.now();
-    let strippedSummary = false;
     let iv = null;
     let obs = null;
 
@@ -292,17 +326,7 @@
         return;
       }
 
-      if (
-        !strippedSummary &&
-        Date.now() - started > RETRY_HASH_MS &&
-        parseHashQuery(h).has("jira_summary")
-      ) {
-        strippedSummary = true;
-        navigateHash(stripSummaryFromHash(h));
-        return;
-      }
-
-      if (tryAutoNavigate(issueKey, gen)) {
+      if (tryAutoNavigate(issueKey, nameFilter, gen)) {
         stop();
       }
     }
@@ -319,7 +343,7 @@
     if (!isFilteredListState(h)) return;
     const key = issueKeyFromHash(h);
     if (!key) return;
-    runSession(key);
+    runSession(key, nameFilterFromHash(h));
   }
 
   startIfNeeded();

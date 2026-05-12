@@ -1,6 +1,6 @@
-# 🧭 MapsBridge Kit v3.4.2
+# Kvietačka (MapsBridge Kit) v3.6.8
 
-A powerful Chrome extension that automatically extracts geographic coordinates (latitude, longitude, zoom, pitch, bearing) from map URLs. Works with most popular mapping services.
+A Chrome extension that extracts geographic coordinates (latitude, longitude, zoom, pitch, bearing) from map URLs and opens quick links to mapping tools, including Mapbox Building Tools Model Slots with optional Jira integration.
 
 ## ✨ Features
 
@@ -16,7 +16,11 @@ A powerful Chrome extension that automatically extracts geographic coordinates (
 - **🔄 Alternative Service URLs**: Hold Shift and click to access alternative service versions with color-coded indicators
 - **🎨 Service Visual Identity**: Colored borders and background images based on service branding
 - **✨ Visual Feedback**: Icon rotation animation shows when extension is loading
-- **🔗 Jira RAVE3D → Model Slot**: With Jira API credentials, the resolver loads the issue and opens the **direct** Model Slot URL when it finds `…/mbx-3dbuilding-tools/#/model-slots/…/uuid/model/…` (or `#/model-slots/…` only) in description, summary, or optional custom fields. If no link is found, it falls back to the filtered list URL with `jira_issue_id`. Bookmark `chrome-extension://<id>/model-slot-resolve.html?key=RAVE3D-103`.
+- **🔗 Jira → Model Slot**: With **Jira email + API token** saved in the popup, the resolver loads the issue from `mapbox.atlassian.net`, resolves **summary** (plain text or ADF) for list filters, and can open Building Tools as follows:
+  - **Direct slot URL** only when a valid Model Slot deep link appears in the **issue summary** (not description or comments—avoids opening another issue’s slot). The opened URL also gets `jira_issue_id`, `jira_summary`, and `name` on the hash for context.
+  - Otherwise a **filtered list** with `jira_issue_id`, `jira_summary`, `name`, `jira_issue_browse_url`, and optional `jira_issue_cloud_id`. A content script on `sites.mapbox.com/mbx-3dbuilding-tools` matches the correct table row (issue key + optional name/summary) before auto-navigating.
+  - You can enter an issue **key** (`RAVE3D-103`) or a **numeric cloud id** (3+ digits) on `model-slot-resolve.html` or via `?key=…`. Without credentials, only a minimal filter URL from the key is possible (no API summary).
+  - From a Jira tab with `browse/KEY` or board `selectedIssue=KEY`, click **Model Slot** (no Shift) to run the resolver; **Shift** opens **Footprint** (demo map) with coordinates.
 
 ---
 
@@ -47,15 +51,16 @@ When you open the popup, the extension automatically extracts coordinates from t
 - Special formats: `ll=`, `cp=`, `center=`
 - CLI format: `--lon X --lat Y --zoom Z`
 
-### Jira Model Slot resolver (RAVE3D)
+### Jira Model Slot resolver
 
-1. Save **email**, **API token**, and optionally comma-separated **custom field IDs** if the slot link lives only in a custom field.
-2. The resolver requests `summary`, `description`, and those fields, then looks for a link like  
-   `https://sites.mapbox.com/mbx-3dbuilding-tools/#/model-slots/DATE/uuid/model/id`  
-   or the same path as a hash-only fragment. If found, that URL opens directly.
-3. If no link is in the issue, it opens the list view with `jira_issue_id` (and optional `jira_summary` when enabled).
-4. Without credentials, only the filtered list URL (no deep link) can be built from the key.
-5. From a `mapbox.atlassian.net/browse/KEY` tab, click **3D Model Slots** (no Shift) to run the resolver; **Shift** still opens **Footprint** with coordinates.
+1. In the popup, under **Jira (RAVE3D resolver)**, save **email** and **API token** (used for `GET /rest/api/3/issue/…` with `fields=summary,*navigable` and `expand=renderedFields`).
+2. **Deep link** is used only if a single unambiguous Model Slot URL is found in **summary** (including ADF link marks). Links taken only from description/comments are **not** used for direct open, so you are not sent to another issue’s slot by mistake.
+3. Any opened deep URL gets **Jira context** appended on the hash: `jira_issue_id`, `jira_summary`, `name` (plus existing query keys such as `center` if present).
+4. If there is no suitable deep link, the extension opens the **model-slots list** hash with the same filter parameters so Building Tools can narrow rows; the bundled `mbxModelSlotsAutoDeepLink.js` content script picks the row that matches the issue key and optional **name / jira_summary** from the URL.
+5. **Without** credentials you can still pass an issue key, but the list URL will not include summary/name from the API (narrowing is weaker).
+6. Optional: configure **custom field IDs** in the popup if your team stores the slot link only in a custom field (those fields are included in navigable fetch when configured).
+
+Bookmark: `chrome-extension://<id>/model-slot-resolve.html?key=RAVE3D-103` (replace `<id>` with your unpacked extension id).
 
 ### Storage Slots
 - **Slot 0**: Always shows coordinates from the current URL (read-only)
@@ -141,7 +146,7 @@ When you open the popup, the extension automatically extracts coordinates from t
 2. Click **3D Buildings Box** → Opens **3DLN Demo Box** (orange highlight)
 3. Click **Labs HD Roads** → Opens **Labs HD 3DLN Demo** (deep purple highlight)
 4. Click **Google Maps** → Opens **Google Earth** (blue highlight)
-5. Click **3D Model Slots** → Opens **Footprint** (purple highlight)
+5. Click **Model Slot** → Opens **Footprint** (purple highlight)
 
 ---
 
@@ -205,7 +210,7 @@ The extension supports navigation to multiple map services:
 - **HD Roads Prod** / **HD Roads Demo** (Shift) - Production HD roads tileset
 - **3DLN Demo Style** - 3D line navigation demo
 - **Google Maps** / **Google Earth** (Shift) - Street and satellite imagery
-- **3D Model Slots** / **Footprint** (Shift) - 3D model visualization
+- **Model Slot** / **Footprint** (Shift) - Mapbox Building Tools model slots and footprint demo
 - **OpenStreetMap** - Open-source map data
 - **Bing Maps** - Microsoft mapping service
 - **Yandex Maps** - Russian mapping service
@@ -234,18 +239,28 @@ You can add custom services by clicking the "+ Add Custom Service" button and pr
 ```
 src/
 ├── core/
-│   ├── app.js              # Main application logic
-│   ├── browserManager.js   # Tab and URL management
+│   ├── app.js              # Main application logic, header shortcut to Chrome shortcuts page
+│   ├── browserManager.js   # Tab and URL management (source window for popup)
 │   └── storageManager.js   # Chrome storage API wrapper
 ├── parsers/
 │   └── coordinateParser.js # Universal coordinate parser
 ├── ui/
 │   ├── uiComponents.js     # UI rendering and interactions
-│   └── serviceModal.js     # Service navigation with drag-and-drop
-└── utils/
-    ├── cliParser.js        # CLI string parsing
-    ├── urlFormatParser.js  # URL format parsing
-    └── geocoder.js         # Location name fetching
+│   └── serviceModal.js     # Service navigation, Model Slot + Jira resolver entry
+├── content/
+│   ├── urlUpdater.js       # Map URL coordinate sync on supported hosts
+│   └── mbxModelSlotsAutoDeepLink.js  # MBT: filtered list → correct row → deep slot hash
+├── jira/
+│   ├── jiraBackground.js   # Imported by service worker: Jira fetch, Model Slot URL build
+│   ├── jiraSettings.js     # Popup Jira credentials UI
+│   └── modelSlotResolvePage.js # Extension page resolver script
+├── utils/
+│   ├── cliParser.js
+│   ├── urlFormatParser.js
+│   ├── geocoder.js
+│   └── jiraUrlIssueKey.js  # Issue key from Atlassian URLs (browse, selectedIssue, …)
+model-slot-resolve.html     # Standalone resolver page
+background.js               # Service worker entry (commands, messages, imports jiraBackground)
 ```
 
 ### Performance

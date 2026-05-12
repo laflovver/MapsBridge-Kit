@@ -20,11 +20,11 @@
     <p id="resolve-status">Loading…</p>
     <p id="resolve-err" class="err" role="alert"></p>
     <div class="resolve-form" id="resolve-manual" style="display: none;">
-      <input type="text" id="resolve-key-input" placeholder="RAVE3D-103" autocomplete="off" spellcheck="false" aria-label="Issue key" />
+      <input type="text" id="resolve-key-input" placeholder="RAVE3D-103 or id" autocomplete="off" spellcheck="false" aria-label="Issue key or numeric id" />
       <button type="button" id="resolve-go" class="btn-primary">Resolve</button>
     </div>
     <p style="font-size: 10px; margin-top: 16px; color: var(--text-muted);">
-      Save Jira email + API token in the extension popup to load the issue and find a deep Model Slot link. Without credentials, only the Building Tools list filtered by issue key opens. From a board, pick the issue first so the URL includes <code style="font-size: 9px;">selectedIssue=</code>.
+      With Jira credentials the resolver loads summary and adds it to the Model Slot list filter as <code style="font-size: 9px;">name</code> and <code style="font-size: 9px;">jira_summary</code> so the correct row is easier to find. You can enter a key or a numeric cloud issue id.
     </p>
   </div>
   <script src="src/jira/modelSlotResolvePage.js"></script>

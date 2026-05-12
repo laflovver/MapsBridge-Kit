@@ -22,8 +22,12 @@ async function runResolve(issueKeyRaw) {
     setVisible(manual, true);
     return;
   }
-  if (!/^[A-Z][A-Z0-9]*-\d+$/.test(key)) {
-    showError(statusEl, errEl, "Invalid issue key format.");
+  if (!/^[A-Z][A-Z0-9]*-\d+$/.test(key) && !/^\d{3,}$/.test(key)) {
+    showError(
+      statusEl,
+      errEl,
+      "Enter issue key (e.g. RAVE3D-103) or numeric Jira cloud issue id."
+    );
     setVisible(manual, true);
     return;
   }
@@ -81,7 +85,7 @@ async function runResolve(issueKeyRaw) {
   } else {
     if (statusEl) {
       statusEl.textContent =
-        "Enter a Jira issue key or open this page with ?key=RAVE3D-103";
+        "Enter issue key (RAVE3D-103) or numeric id, or open with ?key=…";
     }
     setVisible(manual, true);
   }

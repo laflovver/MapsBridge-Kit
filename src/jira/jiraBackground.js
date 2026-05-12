@@ -223,41 +223,149 @@ function extractSlotIdFromModelToolsDeepUrl(urlStr) {
   }
 }
 
-function extractDeepModelSlotUrlFromBlobList(blobs) {
+function collectBlobsForSingleField(issue, fieldKey) {
+  const blobs = [];
+  const fields = issue && issue.fields;
+  if (!fields || fields[fieldKey] == null) return blobs;
+  flattenFieldValue(fields[fieldKey], blobs);
+  return blobs;
+}
+
+function collectRenderedDescriptionBlobs(issue) {
+  const out = [];
+  const rf = issue && issue.renderedFields;
+  if (!rf || typeof rf.description !== "string" || !rf.description) return out;
+  out.push(rf.description);
+  candidateHrefsFromHtml(rf.description).forEach((h) => out.push(h));
+  return out;
+}
+
+function extractAllDeepUrlsFromBlobs(blobs) {
   const seen = new Set();
+  const out = [];
+  const push = (url) => {
+    const t = (url || "").replace(/[),.;]+$/, "");
+    if (!validateDeepModelSlotUrl(t) || seen.has(t)) return;
+    seen.add(t);
+    out.push(t);
+  };
   for (const b of blobs) {
     if (typeof b !== "string" || !b) continue;
     const sources = candidatesFromRawHref(b);
     for (const raw of [...candidateDeepUrlsFromText(b), ...sources]) {
-      const trimmed = raw.replace(/[),.;]+$/, "");
-      if (seen.has(trimmed)) continue;
-      seen.add(trimmed);
-      if (validateDeepModelSlotUrl(trimmed)) return trimmed;
+      push(raw);
     }
   }
   const combined = blobs.filter((x) => typeof x === "string").join("\n");
   for (const raw of candidateDeepUrlsFromText(combined)) {
-    const trimmed = raw.replace(/[),.;]+$/, "");
-    if (seen.has(trimmed)) continue;
-    seen.add(trimmed);
-    if (validateDeepModelSlotUrl(trimmed)) return trimmed;
+    push(raw);
   }
-  return null;
+  return out;
+}
+
+function pickUnambiguousDeepLink(urls) {
+  const valid = urls || [];
+  if (valid.length === 0) return null;
+  if (valid.length === 1) return valid[0];
+  const slotIds = valid
+    .map((u) => extractSlotIdFromModelToolsDeepUrl(u))
+    .filter(Boolean);
+  if (new Set(slotIds).size !== 1) return null;
+  const preferModel = valid.find((u) => {
+    try {
+      const h = new URL(u).hash || "";
+      return /\/model\/\d+/i.test(h.split("?")[0]);
+    } catch (e) {
+      return false;
+    }
+  });
+  return preferModel || valid[0];
+}
+
+function extractDeepModelSlotUrlFromBlobList(blobs) {
+  return pickUnambiguousDeepLink(extractAllDeepUrlsFromBlobs(blobs));
+}
+
+function extractDeepModelSlotUrlFromIssueSummaryOnly(issue) {
+  if (!issue) return null;
+  const summaryAdfHrefs = [];
+  if (issue.fields && issue.fields.summary != null) {
+    collectAdfLinkHrefs(issue.fields.summary, summaryAdfHrefs);
+  }
+  const blobs = [
+    ...collectBlobsForSingleField(issue, "summary"),
+    ...summaryAdfHrefs
+  ];
+  return pickUnambiguousDeepLink(extractAllDeepUrlsFromBlobs(blobs));
+}
+
+function appendJiraContextToModelToolsUrl(urlStr, issueKey, summaryText) {
+  try {
+    const u = new URL(urlStr);
+    if (u.hostname !== "sites.mapbox.com") return urlStr;
+    let h = u.hash || "";
+    if (!h.startsWith("#")) h = "#" + h;
+    const q = h.indexOf("?");
+    const pathOnly = q >= 0 ? h.slice(0, q) : h;
+    const params = q >= 0 ? new URLSearchParams(h.slice(q + 1)) : new URLSearchParams();
+    const ik = (issueKey || "").trim().toUpperCase();
+    if (ik) params.set("jira_issue_id", ik);
+    const s = (summaryText || "").trim();
+    if (s) {
+      const clipped = s.length > 400 ? s.slice(0, 400) : s;
+      params.set("jira_summary", clipped);
+      params.set("name", clipped);
+    }
+    u.hash = `${pathOnly}?${params.toString()}`;
+    return u.toString();
+  } catch (e) {
+    return urlStr;
+  }
 }
 
 function extractDeepModelSlotUrlFromIssue(issue) {
-  const blobs = collectIssueTextBlobs(issue);
-  collectAdfLinksFromIssueFields(issue).forEach((h) => blobs.push(h));
+  if (!issue) return null;
+  const summaryAdfHrefs = [];
+  if (issue.fields && issue.fields.summary != null) {
+    collectAdfLinkHrefs(issue.fields.summary, summaryAdfHrefs);
+  }
+  const phases = [
+    [...collectBlobsForSingleField(issue, "summary"), ...summaryAdfHrefs],
+    collectBlobsForSingleField(issue, "description"),
+    collectRenderedDescriptionBlobs(issue)
+  ];
+  for (let p = 0; p < phases.length; p++) {
+    const pick = pickUnambiguousDeepLink(extractAllDeepUrlsFromBlobs(phases[p]));
+    if (pick) return pick;
+  }
+  const rest = collectIssueTextBlobs(issue);
+  collectAdfLinksFromIssueFields(issue).forEach((h) => rest.push(h));
   collectRenderedFieldsStrings(issue).forEach((html) => {
-    blobs.push(html);
-    candidateHrefsFromHtml(html).forEach((h) => blobs.push(h));
+    rest.push(html);
+    candidateHrefsFromHtml(html).forEach((h) => rest.push(h));
   });
-  return extractDeepModelSlotUrlFromBlobList(blobs);
+  return pickUnambiguousDeepLink(extractAllDeepUrlsFromBlobs(rest));
 }
 
-function buildModelSlotsJiraFilterUrl(issueKey) {
+function buildModelSlotsJiraFilterUrl(issueKey, summaryOpt, cloudIdOpt) {
   const params = new URLSearchParams();
-  params.set("jira_issue_id", issueKey);
+  const key = (issueKey || "").trim().toUpperCase();
+  params.set("jira_issue_id", key);
+  params.set(
+    "jira_issue_browse_url",
+    `${JIRA_BASE}/browse/${encodeURIComponent(key)}`
+  );
+  const cid = cloudIdOpt != null ? String(cloudIdOpt).trim() : "";
+  if (cid && /^\d+$/.test(cid)) {
+    params.set("jira_issue_cloud_id", cid);
+  }
+  const s = (summaryOpt || "").trim();
+  if (s) {
+    const max = 400;
+    const clipped = s.length > max ? s.slice(0, max) : s;
+    params.set("jira_summary", clipped);
+    params.set("name", clipped);
+  }
   return `${MODEL_SLOTS_ORIGIN}${MODEL_SLOTS_PATH_PREFIX}#${MODEL_SLOTS_HASH_ROUTE}?${params.toString()}`;
 }
 
@@ -282,7 +390,7 @@ async function fetchJiraIssue(issueKey) {
     };
   }
 
-  const fields = "*navigable";
+  const fields = "summary,*navigable";
   const expand = "renderedFields";
   const url = `${JIRA_BASE}/rest/api/3/issue/${encodeURIComponent(
     issueKey
@@ -380,26 +488,69 @@ function validateModelSlotsFilterUrl(urlStr) {
   }
 }
 
-async function handleResolveModelSlot(issueKey) {
-  const key = (issueKey || "").trim().toUpperCase();
-  if (!key || !/^[A-Z][A-Z0-9]*-\d+$/.test(key)) {
+function getIssueSummaryText(issue) {
+  if (!issue || !issue.fields) return "";
+  const s = issue.fields.summary;
+  if (typeof s === "string") return s.trim();
+  if (typeof s === "object" && s != null) {
+    return adfToPlainText(s).trim();
+  }
+  return "";
+}
+
+async function handleResolveModelSlot(issueKeyOrIdRaw) {
+  const raw = (issueKeyOrIdRaw || "").trim();
+  if (!raw) {
     return {
       ok: false,
       error: "bad_key",
-      message: "Expected a Jira issue key (e.g. RAVE3D-103)."
+      message: "Expected a Jira issue key (e.g. RAVE3D-103) or numeric issue id."
     };
   }
 
-  const fetched = await fetchJiraIssue(key);
-  const issue = fetched.ok ? fetched.issue : null;
+  let key = "";
+  let fetched = null;
+  let issue = null;
+
+  if (/^\d{3,}$/.test(raw)) {
+    fetched = await fetchJiraIssue(raw);
+    if (!fetched.ok) {
+      if (fetched.error === "missing_credentials") {
+        return {
+          ok: false,
+          error: "missing_credentials",
+          message: "Save Jira email and API token to resolve a numeric issue id."
+        };
+      }
+      return fetched;
+    }
+    issue = fetched.issue;
+    key = (issue && issue.key ? String(issue.key) : "").trim().toUpperCase();
+    if (!key || !/^[A-Z][A-Z0-9]*-\d+$/.test(key)) {
+      return {
+        ok: false,
+        error: "bad_key",
+        message: "Jira response had no issue key."
+      };
+    }
+  } else {
+    key = raw.toUpperCase();
+    if (!/^[A-Z][A-Z0-9]*-\d+$/.test(key)) {
+      return {
+        ok: false,
+        error: "bad_key",
+        message: "Expected a Jira issue key (e.g. RAVE3D-103) or numeric cloud id (3+ digits)."
+      };
+    }
+    fetched = await fetchJiraIssue(key);
+    issue = fetched.ok ? fetched.issue : null;
+  }
 
   if (issue) {
-    let deep = extractDeepModelSlotUrlFromIssue(issue);
-    if (!deep) {
-      const commentBlobs = await fetchJiraIssueCommentBlobs(key);
-      deep = extractDeepModelSlotUrlFromBlobList(commentBlobs);
-    }
+    const summaryText = getIssueSummaryText(issue);
+    let deep = extractDeepModelSlotUrlFromIssueSummaryOnly(issue);
     if (deep) {
+      deep = appendJiraContextToModelToolsUrl(deep, key, summaryText);
       const slotId = extractSlotIdFromModelToolsDeepUrl(deep);
       return {
         ok: true,
@@ -421,7 +572,12 @@ async function handleResolveModelSlot(issueKey) {
     return fetched;
   }
 
-  const filterUrl = buildModelSlotsJiraFilterUrl(key);
+  const filterSummary = getIssueSummaryText(issue);
+  const cloudId =
+    issue && issue.id != null && String(issue.id).trim() !== ""
+      ? String(issue.id).trim()
+      : "";
+  const filterUrl = buildModelSlotsJiraFilterUrl(key, filterSummary, cloudId);
   if (!validateModelSlotsFilterUrl(filterUrl)) {
     return {
       ok: false,
@@ -438,6 +594,6 @@ async function handleResolveModelSlot(issueKey) {
     hint:
       fetched && fetched.error === "missing_credentials"
         ? "Save Jira email and API token to read links from the issue; otherwise only the filtered list opens."
-        : "No deep Model Slot link in the issue. Opened list filtered by issue key."
+        : "No deep Model Slot link in the issue. Opened list filtered by Jira issue; summary is sent as name and jira_summary when the API returned it."
   };
 }
