@@ -122,7 +122,7 @@
 
         <div class="panel-section" id="jira-settings-panel">
           <div id="jira-settings-compact" style="display:none;">
-            <button type="button" id="jira-update-token" class="btn-accent" title="Jira (RAVE3D resolver): edit email and API token">
+            <button type="button" id="jira-update-token" class="btn-accent" title="Jira (RAVE3D resolver): edit email, API token, and Mapbox access token">
               <span class="go-text">Update token</span>
               <span class="go-arrow">→</span>
             </button>
@@ -132,11 +132,12 @@
               <h2 class="section-title">Jira (RAVE3D resolver)</h2>
             </div>
             <p id="jira-settings-intro" style="font-size:10px;color:var(--text-muted);margin-bottom:8px;line-height:1.35;">
-              Email and <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener noreferrer" style="color:var(--text);text-decoration:underline;">API token</a> load issue fields (summary, description, rendered HTML, ADF links) to find a Model Slot deep link. If none, Building Tools opens with a list filtered by <code style="font-size:9px;">jira_issue_id</code> (works with a board tab: <code style="font-size:9px;">selectedIssue=</code>).
+              Email and <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener noreferrer" style="color:var(--text);text-decoration:underline;">API token</a> load issue fields (summary, description, rendered HTML, ADF links) to find a Model Slot deep link. If none, Building Tools opens with a list filtered by <code style="font-size:9px;">jira_issue_id</code> (works with a board tab: <code style="font-size:9px;">selectedIssue=</code>). Optional <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener noreferrer" style="color:var(--text);text-decoration:underline;">Mapbox access token</a> replaces <code style="font-size:9px;">YOUR_MAPBOX_PUBLIC_TOKEN</code> in quick links (for example 3DLN style preview).
             </p>
             <div style="display:flex;flex-direction:column;gap:8px;">
               <input type="email" id="jira-email" placeholder="Email" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--border-radius);font-size:11px;box-sizing:border-box;" />
               <input type="password" id="jira-api-token" placeholder="API token" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--border-radius);font-size:11px;box-sizing:border-box;" />
+              <input type="password" id="jira-mapbox-access-token" placeholder="Mapbox access token (optional)" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--border-radius);font-size:11px;box-sizing:border-box;" />
               <div style="display:flex;align-items:center;gap:10px;">
                 <button type="button" id="jira-save" class="btn-secondary btn-compact">Save settings</button>
               </div>

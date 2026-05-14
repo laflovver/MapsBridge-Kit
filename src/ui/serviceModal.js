@@ -669,8 +669,16 @@ class ServiceModal {
     }
     
     UIComponents.Logger.log(`Opening ${service.name} with coordinates: ${freshCoords.lat}, ${freshCoords.lon}, zoom: ${freshCoords.zoom}`, "info");
-    
-    let url = this.buildServiceUrl(service.urlTemplate, coordsForService);
+
+    let mapboxAccessToken = "";
+    try {
+      if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+        const st = await chrome.storage.local.get(["mapsbridgeMapboxAccessToken"]);
+        mapboxAccessToken = (st.mapsbridgeMapboxAccessToken || "").trim();
+      }
+    } catch (e) {}
+
+    let url = this.buildServiceUrl(service.urlTemplate, coordsForService, mapboxAccessToken);
     
     if (service.name === '3D Buildings Box' && shiftKey) {
       const urlObj = new URL(url);
@@ -679,23 +687,23 @@ class ServiceModal {
     }
     
     if (service.name === 'Model Slot' && shiftKey && service.altUrlTemplate) {
-      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService);
+      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService, mapboxAccessToken);
     }
 
     if (service.name === 'HD Roads Prod' && shiftKey && service.altUrlTemplate) {
-      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService);
+      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService, mapboxAccessToken);
     }
     
     if (service.name === 'Google Maps' && shiftKey && service.altUrlTemplate) {
-      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService);
+      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService, mapboxAccessToken);
     }
     
     if (service.name === 'Labs HD Roads' && shiftKey && service.altUrlTemplate) {
-      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService);
+      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService, mapboxAccessToken);
     }
     
     if (shiftKey && service.altUrlTemplate && this.customServices.includes(service)) {
-      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService);
+      url = this.buildServiceUrl(service.altUrlTemplate, coordsForService, mapboxAccessToken);
     }
     
     if (url) {
@@ -762,7 +770,7 @@ class ServiceModal {
     }
   }
   
-  buildServiceUrl(template, coords) {
+  buildServiceUrl(template, coords, mapboxAccessToken = "") {
     try {
       if (!coords || !coords.lat || !coords.lon) {
         console.error('Invalid coordinates:', coords);
@@ -804,7 +812,12 @@ class ServiceModal {
       }
       
       url = url.replace(/([^:]\/)\/+/g, '$1');
-      
+
+      const tok = (mapboxAccessToken || "").trim();
+      if (tok && url.includes("YOUR_MAPBOX_PUBLIC_TOKEN")) {
+        url = url.split("YOUR_MAPBOX_PUBLIC_TOKEN").join(encodeURIComponent(tok));
+      }
+
       return url;
     } catch (error) {
       console.error('Error building URL:', error);

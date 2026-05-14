@@ -3,6 +3,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   const emailEl = document.getElementById("jira-email");
   const tokenEl = document.getElementById("jira-api-token");
+  const mapboxTokenEl = document.getElementById("jira-mapbox-access-token");
   const saveBtn = document.getElementById("jira-save");
   const savedEl = document.getElementById("jira-saved-hint");
   const compactEl = document.getElementById("jira-settings-compact");
@@ -37,11 +38,15 @@ document.addEventListener("DOMContentLoaded", () => {
   chrome.storage.local
     .get({
       mapsbridgeJiraEmail: "",
-      mapsbridgeJiraApiToken: ""
+      mapsbridgeJiraApiToken: "",
+      mapsbridgeMapboxAccessToken: ""
     })
     .then((r) => {
       emailEl.value = r.mapsbridgeJiraEmail || "";
       tokenEl.value = r.mapsbridgeJiraApiToken || "";
+      if (mapboxTokenEl) {
+        mapboxTokenEl.value = r.mapsbridgeMapboxAccessToken || "";
+      }
       applyJiraPanelLayout();
     })
     .catch(() => {
@@ -49,11 +54,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
   saveBtn.addEventListener("click", () => {
+    const payload = {
+      mapsbridgeJiraEmail: emailEl.value.trim(),
+      mapsbridgeJiraApiToken: tokenEl.value.trim()
+    };
+    if (mapboxTokenEl) {
+      payload.mapsbridgeMapboxAccessToken = mapboxTokenEl.value.trim();
+    }
     chrome.storage.local
-      .set({
-        mapsbridgeJiraEmail: emailEl.value.trim(),
-        mapsbridgeJiraApiToken: tokenEl.value.trim()
-      })
+      .set(payload)
       .then(() => {
         jiraEditingToken = false;
         applyJiraPanelLayout();
