@@ -14,7 +14,7 @@ const REGEX_PATTERNS = {
   satellitesProFormat: /#(\d+\.?\d*),(\d+\.?\d*),(\d+)/,
   mapillaryFormat: /[?&]lat=(-?\d+\.?\d*)[&]?.*?[?&]lng=(-?\d+\.?\d*)/i,
   planetFormat: /\/mosaic\/[^\/]+\/center\/(-?\d+\.?\d*)\/(-?\d+\.?\d*)\/(\d+)/,
-  zoomParam: /[?&](?:z|zoom|lvl)=(\d+)/i,
+  zoomParam: /[?&](?:z|zoom|lvl)=(\d+\.?\d*)/i,
 };
 
 class CoordinateParser {
@@ -25,6 +25,11 @@ class CoordinateParser {
       const fullUrl = urlObj.href;
       
       let coords = null;
+
+      coords = this._extractGoogleEarthWebCamera(fullUrl);
+      if (coords && this._validateCoordinates(coords)) {
+        return this._normalizeCoordinates(coords);
+      }
       
       coords = this._extractFromPath(fullUrl);
       if (coords && this._validateCoordinates(coords)) {
@@ -60,38 +65,73 @@ class CoordinateParser {
   
   static earthCameraMetersToMapsZoom(meters) {
     const m = Math.max(1, Number(meters));
-    const z = 23 - Math.log10(m) * 4;
-    return Math.max(1, Math.min(22, Math.round(z)));
+    const z = 23 - Math.log2(m);
+    return Math.max(1, Math.min(22, Math.round(z * 100) / 100));
+  }
+
+  static earthAltitudeToBingWebLevel(meters) {
+    const m = Math.max(1, Number(meters));
+    const lvl = 26.2 - Math.log2(m);
+    return Math.max(1, Math.min(21, Math.round(lvl * 10) / 10));
   }
 
   static clampGoogleMapsZoom(zoom) {
     const z = Number(zoom);
     if (!Number.isFinite(z) || z <= 0) return 15;
     if (z <= 22) return Math.max(1, Math.min(22, Math.round(z)));
-    return this.earthCameraMetersToMapsZoom(z);
+    return Math.round(this.earthCameraMetersToMapsZoom(z));
+  }
+
+  static _extractGoogleEarthWebCamera(fullUrl) {
+    if (!fullUrl.includes("earth.google.com")) return null;
+    const cam = fullUrl.match(/\/web\/@([^/]+)/);
+    if (!cam) return null;
+    const segments = cam[1].split(",");
+    if (segments.length < 3) return null;
+    const lat = parseFloat(segments[0]);
+    const lon = parseFloat(segments[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    let altMeters = null;
+    let bearing = null;
+    let pitch = null;
+    for (let i = 2; i < segments.length; i++) {
+      const sm = segments[i].trim().match(/^(-?\d+\.?\d*)([a-zA-Z])$/);
+      if (!sm) continue;
+      const v = parseFloat(sm[1]);
+      const letter = sm[2].toLowerCase();
+      if (letter === "a") altMeters = v;
+      else if (letter === "h") bearing = v;
+      else if (letter === "t") pitch = v;
+    }
+    if (altMeters == null || !Number.isFinite(altMeters)) return null;
+    const zoom = this.earthCameraMetersToMapsZoom(altMeters);
+    const bingLvl = this.earthAltitudeToBingWebLevel(altMeters);
+    return {
+      lat,
+      lon,
+      zoom,
+      bingLvl,
+      bearing: bearing != null && Number.isFinite(bearing) ? bearing : 0,
+      pitch: pitch != null && Number.isFinite(pitch) ? pitch : 0
+    };
   }
 
   static _extractFromPath(url) {
+    if (url.includes("earth.google.com")) {
+      return this._extractGoogleEarthWebCamera(url);
+    }
+
     const match = url.match(REGEX_PATTERNS.pathFormat);
     if (!match) return null;
 
     const lat = parseFloat(match[1]);
     const lon = parseFloat(match[2]);
-    let zoom = parseFloat(match[3]);
-    const suffix = (match[4] || "").toLowerCase();
-
-    if (url.includes("earth.google.com")) {
-      if (suffix === "a" || suffix === "d" || zoom > 22) {
-        zoom = this.earthCameraMetersToMapsZoom(zoom);
-      } else {
-        zoom = Math.max(1, Math.min(22, zoom));
-      }
-    }
+    const zoom = parseFloat(match[3]);
 
     return {
       lat,
       lon,
-      zoom,
+      zoom: Math.max(1, Math.min(22, zoom)),
       bearing: 0,
       pitch: 0
     };
@@ -455,9 +495,12 @@ class CoordinateParser {
     const normalized = {
       lat: coords.lat || 0,
       lon: coords.lon || 0,
-      zoom: coords.zoom || 0
+      zoom: coords.zoom != null && Number.isFinite(coords.zoom) ? coords.zoom : 15
     };
     
+    if (coords.bingLvl !== undefined && coords.bingLvl !== null && Number.isFinite(coords.bingLvl)) {
+      normalized.bingLvl = coords.bingLvl;
+    }
     if (coords.bearing !== undefined && coords.bearing !== null) {
       normalized.bearing = coords.bearing;
     }

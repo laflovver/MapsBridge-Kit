@@ -74,11 +74,11 @@ class ServiceModal {
     
     // Standard services configuration
     this.standardServices = [
-      { name: 'Mapbox Standard', urlTemplate: 'https://labs.mapbox.com/standard-style/#{{zoom}}/{{lat}}/{{lon}}', color: '#1A73E8', backgroundImage: 'https://labs.mapbox.com/favicon.ico' },
+      { name: 'Mapbox Standard', urlTemplate: 'https://labs.mapbox.com/standard-style/#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', color: '#1A73E8', backgroundImage: 'https://labs.mapbox.com/favicon.ico' },
       { name: '3D Buildings Box', urlTemplate: 'https://hey.mapbox.com/3D-Buildings-Box/#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', color: '#FF9800', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
       { name: 'Labs HD Roads', urlTemplate: 'https://labs.mapbox.com/hd-roads/?lightPreset=satellite#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', color: '#9C27B0', backgroundImage: 'https://labs.mapbox.com/favicon.ico', altUrlTemplate: 'https://labs.mapbox.com/hd-roads/?lightPreset=day&source=3dln#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', hasShiftModifier: true },
       { name: 'HD Roads Prod', urlTemplate: 'https://console.mapbox.com/studio/tilesets/mapbox.hd-road-v1-bounded/#{{zoom}}/{{lat}}/{{lon}}', color: '#00BCD4', backgroundImage: 'https://www.mapbox.com/favicon.ico', isTileset: true, altUrlTemplate: 'https://console.mapbox.com/studio/tilesets/mapbox.hd-road-v1-bounded-demo/#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}', hasShiftModifier: true },
-      { name: '3DLN Demo Style', urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox-3dln/mbx-3d-line-navigation-demo-style.html?title=view&access_token=YOUR_MAPBOX_PUBLIC_TOKEN&zoomwheel=true&fresh=true#{{zoom}}/{{lat}}/{{lon}}', color: '#E91E63', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
+      { name: '3DLN Demo Style', urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox-3dln/mbx-3d-line-navigation-demo-style.html?title=view&access_token=YOUR_MAPBOX_PUBLIC_TOKEN&zoomwheel=true&fresh=true#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}', color: '#E91E63', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
       { name: 'Google Maps', urlTemplate: 'https://earth.google.com/web/@{{lat}},{{lon}},{{zoom}}a,0y,0h,45t,0r', color: '#4285F4', backgroundImage: 'https://www.google.com/favicon.ico', altUrlTemplate: 'https://www.google.com/maps/@{{lat}},{{lon}},{{zoom}}z', hasShiftModifier: true },
       { name: 'Direction Debug', urlTemplate: 'https://console.mapbox.com/directions-debug/#map={{lon}},{{lat}},{{zoom}}z', color: '#00BCD4', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
       { name: 'Streets Debug', urlTemplate: 'https://hey.mapbox.com/streets-debug/#{{zoom}}/{{lat}}/{{lon}}/{{bearing}}/{{pitch}}/mapbox://styles/mapbox-geodata/cl6p8s7ik000615tjums0jh83/false', color: '#5C6BC0', backgroundImage: 'https://www.mapbox.com/favicon.ico' },
@@ -769,7 +769,10 @@ class ServiceModal {
         return null;
       }
       
-      let zoomVal = coords.zoom || 15;
+      let zoomVal = coords.zoom != null && Number.isFinite(coords.zoom) ? coords.zoom : 15;
+      if (template.includes('bing.com/maps') && coords.bingLvl != null && Number.isFinite(coords.bingLvl)) {
+        zoomVal = coords.bingLvl;
+      }
       if (template.includes('google.com/maps')) {
         zoomVal = typeof CoordinateParser !== 'undefined' && CoordinateParser.clampGoogleMapsZoom
           ? CoordinateParser.clampGoogleMapsZoom(coords.zoom)
