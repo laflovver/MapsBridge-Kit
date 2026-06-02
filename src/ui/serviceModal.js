@@ -143,7 +143,7 @@ class ServiceModal {
       
       // Update 3D Buildings Box name
       if (serviceName === '3D Buildings Box') {
-        const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn)');
+        const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn):not(.service-edit-btn)');
         if (nameSpan) {
           nameSpan.textContent = shiftHeld ? '3DLN Demo Box' : '3D Buildings Box';
         }
@@ -151,7 +151,7 @@ class ServiceModal {
       
       // Update HD Roads Prod name
       if (serviceName === 'HD Roads Prod') {
-        const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn)');
+        const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn):not(.service-edit-btn)');
         if (nameSpan) {
           nameSpan.textContent = shiftHeld ? 'HD Roads Demo' : 'HD Roads Prod';
         }
@@ -159,7 +159,7 @@ class ServiceModal {
       
       // Update Google Maps name
       if (serviceName === 'Google Maps') {
-        const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn)');
+        const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn):not(.service-edit-btn)');
         if (nameSpan) {
           nameSpan.textContent = shiftHeld ? 'Google Maps' : 'Google Earth';
         }
@@ -167,7 +167,7 @@ class ServiceModal {
       
       // Update Labs HD Roads name
       if (serviceName === 'Labs HD Roads') {
-        const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn)');
+        const nameSpan = btn.querySelector('span:not(.service-hotkey-badge):not(.service-delete-btn):not(.service-edit-btn)');
         if (nameSpan) {
           nameSpan.textContent = shiftHeld ? 'Labs HD 3DLN Demo' : 'Labs HD Roads';
         }
@@ -175,7 +175,7 @@ class ServiceModal {
 
       if (serviceName === 'Model Slot') {
         const nameSpan = btn.querySelector(
-          'span:not(.service-hotkey-badge):not(.service-delete-btn)'
+          'span:not(.service-hotkey-badge):not(.service-delete-btn):not(.service-edit-btn)'
         );
         if (nameSpan) {
           nameSpan.textContent = shiftHeld ? 'Footprint' : 'Model Slot';
@@ -243,7 +243,7 @@ class ServiceModal {
       const service = this.standardServices.find(s => s.name === serviceName) || 
                      this.customServices.find(s => s.name === serviceName);
       if (service && !this.hiddenServices.has(serviceName)) {
-        const btn = this.createServiceButton(service, this.customServices.includes(service), index);
+        const btn = this.createServiceButton(service, this.isCustomService(service), index);
         btn.draggable = true;
         btn.dataset.dragIndex = index;
         this.serviceGrid.appendChild(btn);
@@ -436,6 +436,10 @@ class ServiceModal {
     }
   }
   
+  isCustomService(service) {
+    return this.customServices.some((s) => s.name === service.name);
+  }
+
   createServiceButton(service, isCustom = false, index = null) {
     const btn = document.createElement('button');
     btn.className = 'service-btn';
@@ -583,13 +587,31 @@ class ServiceModal {
       this.openService(service, e.shiftKey);
     });
 
-    // Add delete button for all services
+    if (isCustom) {
+      const editBtn = document.createElement('span');
+      editBtn.textContent = '\u270E';
+      editBtn.className = 'service-edit-btn';
+      editBtn.title = 'Edit custom service';
+      editBtn.setAttribute('role', 'button');
+      editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.promptEditCustomService(service.name);
+      });
+      btn.appendChild(editBtn);
+    }
+
     const deleteBtn = document.createElement('span');
     deleteBtn.textContent = '×';
     deleteBtn.className = 'service-delete-btn';
+    deleteBtn.title = isCustom ? 'Remove custom service' : 'Hide service';
+    deleteBtn.setAttribute('role', 'button');
     deleteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.toggleServiceVisibility(service.name);
+      if (isCustom) {
+        this.deleteCustomService(service.name);
+      } else {
+        this.toggleServiceVisibility(service.name);
+      }
     });
     btn.appendChild(deleteBtn);
     
@@ -702,7 +724,7 @@ class ServiceModal {
       url = this.buildServiceUrl(service.altUrlTemplate, coordsForService, mapboxAccessToken);
     }
     
-    if (shiftKey && service.altUrlTemplate && this.customServices.includes(service)) {
+    if (shiftKey && service.altUrlTemplate && this.isCustomService(service)) {
       url = this.buildServiceUrl(service.altUrlTemplate, coordsForService, mapboxAccessToken);
     }
     
@@ -826,117 +848,222 @@ class ServiceModal {
   }
   
   promptAddCustomService() {
-    // Create modal
+    this.showCustomServiceDialog({ mode: 'add' });
+  }
+
+  promptEditCustomService(originalName) {
+    const existing = this.customServices.find((s) => s.name === originalName);
+    if (!existing) return;
+    this.showCustomServiceDialog({ mode: 'edit', originalName });
+  }
+
+  renameCustomServiceReferences(oldName, newName) {
+    if (oldName === newName) return;
+    try {
+      const saved =
+        localStorage.getItem('mapsbridge_kit_services_order') ||
+        localStorage.getItem('coordinate_extractor_services_order');
+      if (saved) {
+        const order = JSON.parse(saved).map((name) => (name === oldName ? newName : name));
+        this.saveServicesOrder(order);
+      }
+    } catch (error) {
+      console.error('Error updating services order after rename:', error);
+    }
+    if (this.hiddenServices.has(oldName)) {
+      this.hiddenServices.delete(oldName);
+      this.hiddenServices.add(newName);
+      this.saveHiddenServices();
+    }
+  }
+
+  normalizeFormUrl(value) {
+    return (value || '')
+      .replace(/[\u200b-\u200d\ufeff]/g, '')
+      .trim();
+  }
+
+  isOptionalUrlEmpty(value) {
+    return !this.normalizeFormUrl(value);
+  }
+
+  buildCustomServiceFromForm(name, urlRaw, altUrlRaw) {
+    const nameValidation = ServiceValidator.validateServiceName(name);
+    if (!nameValidation.valid) {
+      return { error: nameValidation.error };
+    }
+
+    const url = this.normalizeFormUrl(urlRaw);
+    if (!url) {
+      return { error: 'URL is required.' };
+    }
+
+    const urlTemplate = this.detectUrlTemplate(url);
+    if (!urlTemplate) {
+      return {
+        error:
+          'Could not detect coordinates in this link. Paste a map URL that contains lat/lon (or type the template yourself with {{lat}}, {{lon}}, and {{zoom}}).',
+      };
+    }
+
+    const urlValidation = ServiceValidator.validateServiceUrl(urlTemplate);
+    if (!urlValidation.valid) {
+      return { error: urlValidation.error };
+    }
+
+    const altUrl = this.normalizeFormUrl(altUrlRaw);
+    let altUrlTemplate = null;
+    if (altUrl) {
+      altUrlTemplate = this.detectUrlTemplate(altUrl);
+      if (!altUrlTemplate) {
+        return {
+          error:
+            'Could not detect coordinates in the alternative URL. Add {{lat}}, {{lon}}, and {{zoom}} in that field, or leave it empty.',
+        };
+      }
+      const altUrlValidation = ServiceValidator.validateServiceUrl(altUrlTemplate);
+      if (!altUrlValidation.valid) {
+        return { error: 'Alternative URL error: ' + altUrlValidation.error };
+      }
+    }
+
+    return {
+      service: {
+        name,
+        urlTemplate,
+        altUrlTemplate,
+        hasShiftModifier: !!altUrlTemplate,
+        color: '#FF9800',
+      },
+    };
+  }
+
+  showCustomServiceDialog({ mode = 'add', originalName = null } = {}) {
+    const isEdit = mode === 'edit';
+    const existing = isEdit ? this.customServices.find((s) => s.name === originalName) : null;
+    if (isEdit && !existing) return;
+
     const modal = document.createElement('div');
-    modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;';
-    
+    modal.style.cssText =
+      'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;';
+
     const dialog = document.createElement('div');
-    dialog.style.cssText = 'background: white; padding: 24px; border-radius: 8px; min-width: 400px; max-width: 500px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);';
-    
+    dialog.style.cssText =
+      'background: white; padding: 24px; border-radius: 8px; min-width: 400px; max-width: 500px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);';
+
+    const title = isEdit ? 'Edit Custom Service' : 'Add Custom Service';
+    const submitLabel = isEdit ? 'Save Changes' : 'Add Service';
+
     dialog.innerHTML = `
-      <h2 style="margin: 0 0 20px 0; font-size: 18px; color: #4F5D75;">Add Custom Service</h2>
+      <h2 style="margin: 0 0 20px 0; font-size: 18px; color: #4F5D75;">${title}</h2>
       <form id="custom-service-form">
         <div style="margin-bottom: 16px;">
           <label style="display: block; margin-bottom: 8px; font-size: 14px; color: #4F5D75; font-weight: 600;">Service Name</label>
-          <input type="text" id="service-name" required style="width: 100%; padding: 8px 12px; border: 1px solid #919AA8; border-radius: 5px; font-size: 14px; box-sizing: border-box;" placeholder="e.g., My Custom Map">
+          <input type="text" id="service-name" required autocomplete="off" style="width: 100%; padding: 8px 12px; border: 1px solid #919AA8; border-radius: 5px; font-size: 14px; box-sizing: border-box;" placeholder="e.g., My Custom Map">
         </div>
         <div style="margin-bottom: 16px;">
           <label style="display: block; margin-bottom: 8px; font-size: 14px; color: #4F5D75; font-weight: 600;">URL Template</label>
-          <textarea id="service-url" required style="width: 100%; padding: 8px 12px; border: 1px solid #919AA8; border-radius: 5px; font-size: 14px; box-sizing: border-box; min-height: 60px; font-family: monospace;" placeholder="https://example.com/map#{{zoom}}/{{lat}}/{{lon}}"></textarea>
+          <textarea id="service-url" required autocomplete="off" style="width: 100%; padding: 8px 12px; border: 1px solid #919AA8; border-radius: 5px; font-size: 14px; box-sizing: border-box; min-height: 60px; font-family: monospace;" placeholder="https://example.com/map#{{zoom}}/{{lat}}/{{lon}}"></textarea>
           <small style="color: #919AA8; font-size: 12px;">Use {{lat}}, {{lon}}, {{zoom}} as placeholders</small>
         </div>
         <div style="margin-bottom: 24px;">
           <label style="display: block; margin-bottom: 8px; font-size: 14px; color: #4F5D75; font-weight: 600;">Alternative URL (Optional)</label>
-          <textarea id="service-alt-url" style="width: 100%; padding: 8px 12px; border: 1px solid #919AA8; border-radius: 5px; font-size: 14px; box-sizing: border-box; min-height: 60px; font-family: monospace;" placeholder="Alternative URL for Shift+click"></textarea>
+          <textarea id="service-alt-url" autocomplete="off" style="width: 100%; padding: 8px 12px; border: 1px solid #919AA8; border-radius: 5px; font-size: 14px; box-sizing: border-box; min-height: 60px; font-family: monospace;" placeholder="Alternative URL for Shift+click"></textarea>
           <small style="color: #919AA8; font-size: 12px;">Opens when Shift is held while clicking</small>
         </div>
-        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+        <div style="display: flex; gap: 12px; justify-content: flex-end; align-items: center;">
+          ${isEdit ? '<button type="button" id="delete-custom-btn" style="margin-right: auto; padding: 8px 16px; background: transparent; color: #c62828; border: 1px solid #c62828; border-radius: 5px; cursor: pointer; font-size: 14px;">Delete</button>' : ''}
           <button type="button" id="cancel-btn" style="padding: 8px 16px; background: #f5f5f5; border: 1px solid #919AA8; border-radius: 5px; cursor: pointer; font-size: 14px;">Cancel</button>
-          <button type="submit" id="add-btn" style="padding: 8px 16px; background: #4285F4; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">Add Service</button>
+          <button type="submit" id="submit-btn" style="padding: 8px 16px; background: #4285F4; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600;">${submitLabel}</button>
         </div>
       </form>
     `;
-    
+
     modal.appendChild(dialog);
     document.body.appendChild(modal);
-    
-    // Handle form submission
+
+    const nameInput = dialog.querySelector('#service-name');
+    const urlInput = dialog.querySelector('#service-url');
+    const altUrlInput = dialog.querySelector('#service-alt-url');
+    if (isEdit) {
+      nameInput.value = existing.name || '';
+      urlInput.value = existing.urlTemplate || '';
+      altUrlInput.value = existing.altUrlTemplate || '';
+    }
+
+    const closeModal = () => {
+      if (modal.parentNode) {
+        document.body.removeChild(modal);
+      }
+    };
+
     const form = dialog.querySelector('#custom-service-form');
     form.addEventListener('submit', (e) => {
       e.preventDefault();
 
-      const name = ServiceValidator.sanitizeInput(document.getElementById('service-name').value);
-      const url = document.getElementById('service-url').value.trim();
-      const altUrl = document.getElementById('service-alt-url').value.trim();
+      const name = ServiceValidator.sanitizeInput(nameInput.value);
+      const url = this.normalizeFormUrl(urlInput.value);
+      const altUrl = this.normalizeFormUrl(altUrlInput.value);
 
-      // Validate service name
-      const nameValidation = ServiceValidator.validateServiceName(name);
-      if (!nameValidation.valid) {
-        alert(nameValidation.error);
+      if (
+        this.customServices.some(
+          (s) => s.name === name && (!isEdit || s.name !== originalName)
+        )
+      ) {
+        alert('A service with this name already exists.');
         return;
       }
 
-      // Detect URL template
-      const urlTemplate = this.detectUrlTemplate(url);
-
-      if (!urlTemplate) {
-        alert('Could not detect coordinates in this link. Paste a map URL that contains lat/lon (or type the template yourself with {{lat}}, {{lon}}, and {{zoom}}).');
+      const built = this.buildCustomServiceFromForm(name, url, altUrl);
+      if (built.error) {
+        alert(built.error);
         return;
       }
 
-      // Validate URL template
-      const urlValidation = ServiceValidator.validateServiceUrl(urlTemplate);
-      if (!urlValidation.valid) {
-        alert(urlValidation.error);
-        return;
-      }
+      const { service } = built;
 
-      let altUrlTemplate = null;
-      if (altUrl) {
-        altUrlTemplate = this.detectUrlTemplate(altUrl);
-        if (!altUrlTemplate) {
-          alert('Could not detect coordinates in the alternative URL. Add {{lat}}, {{lon}}, and {{zoom}} in that field, or leave it empty.');
+      if (isEdit) {
+        const idx = this.customServices.findIndex((s) => s.name === originalName);
+        if (idx === -1) {
+          closeModal();
           return;
         }
-        const altUrlValidation = ServiceValidator.validateServiceUrl(altUrlTemplate);
-        if (!altUrlValidation.valid) {
-          alert('Alternative URL error: ' + altUrlValidation.error);
-          return;
+        service.color = this.customServices[idx].color || service.color;
+        if (name !== originalName) {
+          this.renameCustomServiceReferences(originalName, name);
         }
+        this.customServices[idx] = service;
+        this.saveCustomServices();
+        this.renderServices();
+        UIComponents.Logger.log(`Updated custom service: ${name}`, 'success');
+      } else {
+        this.customServices.push(service);
+        this.saveCustomServices();
+        this.renderServices();
+        UIComponents.Logger.log(`Added custom service: ${name}`, 'success');
       }
 
-      const service = {
-        name: name,
-        urlTemplate: urlTemplate,
-        altUrlTemplate: altUrlTemplate,
-        hasShiftModifier: !!altUrl,
-        color: '#FF9800'
-      };
-
-      this.customServices.push(service);
-      this.saveCustomServices();
-      this.renderServices();
-      UIComponents.Logger.log(`Added custom service: ${name}`, "success");
-
-      document.body.removeChild(modal);
+      closeModal();
     });
-    
-    // Handle cancel button
-    const cancelBtn = dialog.querySelector('#cancel-btn');
-    cancelBtn.addEventListener('click', () => {
-      document.body.removeChild(modal);
-    });
-    
-    // Close on background click
+
+    dialog.querySelector('#cancel-btn').addEventListener('click', closeModal);
+
+    if (isEdit) {
+      dialog.querySelector('#delete-custom-btn').addEventListener('click', () => {
+        closeModal();
+        this.deleteCustomService(originalName);
+      });
+    }
+
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
-        document.body.removeChild(modal);
+        closeModal();
       }
     });
   }
   
   detectUrlTemplate(url) {
-    const trimmed = (url || '').trim();
+    const trimmed = this.normalizeFormUrl(url);
     if (!trimmed) return null;
 
     if (trimmed.includes('{{lat}}') && trimmed.includes('{{lon}}')) {
@@ -955,14 +1082,33 @@ class ServiceModal {
       if (template.includes('{{lat}}') && template.includes('{{lon}}')) return template;
     }
 
-    if (/#map=\d+\/[\d.-]+\/[\d.-]+/.test(template)) {
-      template = template.replace(/#map=(\d+)\/([\d.-]+)\/([\d.-]+)/g, '#map={{zoom}}/{{lat}}/{{lon}}');
+    if (/#map=[\d.-]+,[\d.-]+,[\d.]+z/i.test(template)) {
+      template = template.replace(
+        /#map=[\d.-]+,[\d.-]+,[\d.]+z/gi,
+        '#map={{lon}},{{lat}},{{zoom}}z'
+      );
+      if (template.includes('{{lat}}') && template.includes('{{lon}}')) return template;
+    }
+
+    if (/#map=[\d.-]+\/[\d.-]+\/[\d.-]+/.test(template)) {
+      template = template.replace(
+        /#map=[\d.-]+\/[\d.-]+\/[\d.-]+/g,
+        '#map={{zoom}}/{{lat}}/{{lon}}'
+      );
       if (template.includes('{{lat}}') && template.includes('{{lon}}')) return template;
     }
 
     const hashZoomLatLon = trimmed.match(/#(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)(?:\/|$)/);
     if (hashZoomLatLon && !trimmed.includes('#map=')) {
       return trimmed.replace(/#(-?[\d.]+)\/(-?[\d.]+)\/(-?[\d.]+)/, '#{{zoom}}/{{lat}}/{{lon}}');
+    }
+
+    if (/center=[\d.]+%2F[\d.-]+%2F[\d.-]+/i.test(template)) {
+      template = template.replace(
+        /center=[\d.]+%2F[\d.-]+%2F[\d.-]+/gi,
+        'center={{zoom}}%2F{{lon}}%2F{{lat}}'
+      );
+      if (template.includes('{{lat}}') && template.includes('{{lon}}')) return template;
     }
 
     if (/cp=[\d.-]+~[\d.-]+&lvl=\d+/.test(template)) {
@@ -979,6 +1125,7 @@ class ServiceModal {
       template = template
         .replace(/lat=([\d.-]+)/gi, 'lat={{lat}}')
         .replace(/lng=([\d.-]+)/gi, 'lng={{lon}}')
+        .replace(/([?&])lon=([\d.-]+)/gi, '$1lon={{lon}}')
         .replace(/([?&])z=(\d+)/g, '$1z={{zoom}}');
       if (template.includes('{{lat}}') && template.includes('{{lon}}')) return template;
     }
