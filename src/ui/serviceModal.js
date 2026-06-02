@@ -61,6 +61,23 @@ class ServiceValidator {
   static sanitizeInput(input) {
     return input.trim().replace(/[<>]/g, '');
   }
+
+  static validateOptionalServiceName(name) {
+    if (!name || name.trim().length === 0) {
+      return { valid: true };
+    }
+    return this.validateServiceName(name);
+  }
+
+  static validateHexColor(color) {
+    if (!color || color.trim().length === 0) {
+      return { valid: true };
+    }
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(color.trim())) {
+      return { valid: true };
+    }
+    return { valid: false, error: 'Color must be a hex value like #FF9800' };
+  }
 }
 
 class ServiceModal {
@@ -179,6 +196,16 @@ class ServiceModal {
         );
         if (nameSpan) {
           nameSpan.textContent = shiftHeld ? 'Footprint' : 'Model Slot';
+        }
+      }
+
+      const custom = this.customServices.find((s) => s.name === serviceName);
+      if (custom && custom.altUrlTemplate && custom.altName) {
+        const nameSpan = btn.querySelector(
+          'span:not(.service-hotkey-badge):not(.service-delete-btn):not(.service-edit-btn)'
+        );
+        if (nameSpan) {
+          nameSpan.textContent = shiftHeld ? custom.altName : custom.name;
         }
       }
     });
@@ -440,6 +467,44 @@ class ServiceModal {
     return this.customServices.some((s) => s.name === service.name);
   }
 
+  normalizeHexColor(value) {
+    const v = (value || '').trim();
+    if (!v) return null;
+    if (/^#[0-9a-f]{6}$/i.test(v)) return v;
+    if (/^#[0-9a-f]{3}$/i.test(v)) {
+      return (
+        '#' +
+        v[1] + v[1] +
+        v[2] + v[2] +
+        v[3] + v[3]
+      ).toUpperCase();
+    }
+    return null;
+  }
+
+  hexToRgb(hex) {
+    const normalized = this.normalizeHexColor(hex);
+    if (!normalized) return null;
+    return {
+      r: parseInt(normalized.slice(1, 3), 16),
+      g: parseInt(normalized.slice(3, 5), 16),
+      b: parseInt(normalized.slice(5, 7), 16),
+    };
+  }
+
+  applyCustomShiftHighlight(btn, color) {
+    const normalized = this.normalizeHexColor(color);
+    if (!normalized) return;
+    const rgb = this.hexToRgb(normalized);
+    if (!rgb) return;
+    btn.classList.add('custom-shift-highlight');
+    btn.style.setProperty('--custom-shift-color', normalized);
+    btn.style.setProperty(
+      '--custom-shift-glow',
+      `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.45)`
+    );
+  }
+
   createServiceButton(service, isCustom = false, index = null) {
     const btn = document.createElement('button');
     btn.className = 'service-btn';
@@ -578,9 +643,13 @@ class ServiceModal {
     
     
     if (isCustom) {
-      btn.style.borderTop = '2px solid #FF9800';
-      btn.style.borderBottom = '2px solid #FF9800';
-      btn.style.borderRight = '2px solid #FF9800';
+      const accent = service.color || '#FF9800';
+      btn.style.borderTop = `2px solid ${accent}`;
+      btn.style.borderBottom = `2px solid ${accent}`;
+      btn.style.borderRight = `2px solid ${accent}`;
+      if (service.altUrlTemplate) {
+        this.applyCustomShiftHighlight(btn, service.shiftColor || '#FF9800');
+      }
     }
     
     btn.addEventListener('click', (e) => {
@@ -887,7 +956,7 @@ class ServiceModal {
     return !this.normalizeFormUrl(value);
   }
 
-  buildCustomServiceFromForm(name, urlRaw, altUrlRaw) {
+  buildCustomServiceFromForm(name, urlRaw, altUrlRaw, altNameRaw, shiftColorRaw) {
     const nameValidation = ServiceValidator.validateServiceName(name);
     if (!nameValidation.valid) {
       return { error: nameValidation.error };
@@ -927,11 +996,32 @@ class ServiceModal {
       }
     }
 
+    const altName = altNameRaw ? ServiceValidator.sanitizeInput(altNameRaw) : '';
+    const altNameValidation = ServiceValidator.validateOptionalServiceName(altName);
+    if (!altNameValidation.valid) {
+      return { error: 'Alternative name: ' + altNameValidation.error };
+    }
+    if (altName && !altUrlTemplate) {
+      return { error: 'Alternative name requires an alternative URL.' };
+    }
+
+    const shiftColorInput = (shiftColorRaw || '').trim();
+    const shiftColorValidation = ServiceValidator.validateHexColor(shiftColorInput);
+    if (!shiftColorValidation.valid) {
+      return { error: shiftColorValidation.error };
+    }
+
+    const shiftColor =
+      this.normalizeHexColor(shiftColorInput) ||
+      this.normalizeHexColor('#FF9800');
+
     return {
       service: {
         name,
         urlTemplate,
         altUrlTemplate,
+        altName: altUrlTemplate && altName ? altName : null,
+        shiftColor: altUrlTemplate ? shiftColor : null,
         hasShiftModifier: !!altUrlTemplate,
         color: '#FF9800',
       },
@@ -966,6 +1056,14 @@ class ServiceModal {
           <textarea id="service-url" required autocomplete="off" style="width: 100%; padding: 8px 12px; border: 1px solid #919AA8; border-radius: 5px; font-size: 14px; box-sizing: border-box; min-height: 60px; font-family: monospace;" placeholder="https://example.com/map#{{zoom}}/{{lat}}/{{lon}}"></textarea>
           <small style="color: #919AA8; font-size: 12px;">Use {{lat}}, {{lon}}, {{zoom}} as placeholders</small>
         </div>
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; margin-bottom: 8px; font-size: 14px; color: #4F5D75; font-weight: 600;">Alternative Name (Optional)</label>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <input type="text" id="service-alt-name" autocomplete="off" style="flex: 1; min-width: 0; padding: 8px 12px; border: 1px solid #919AA8; border-radius: 5px; font-size: 14px; box-sizing: border-box;" placeholder="Label shown while Shift is held">
+            <input type="color" id="service-shift-color" value="#FF9800" title="Shift highlight color" style="flex: 0 0 48px; width: 48px; height: 38px; padding: 0; border: 1px solid #919AA8; border-radius: 5px; cursor: pointer; box-sizing: border-box;">
+          </div>
+          <small style="color: #919AA8; font-size: 12px; display: block; margin-top: 6px;">Name and glow while Shift is held</small>
+        </div>
         <div style="margin-bottom: 24px;">
           <label style="display: block; margin-bottom: 8px; font-size: 14px; color: #4F5D75; font-weight: 600;">Alternative URL (Optional)</label>
           <textarea id="service-alt-url" autocomplete="off" style="width: 100%; padding: 8px 12px; border: 1px solid #919AA8; border-radius: 5px; font-size: 14px; box-sizing: border-box; min-height: 60px; font-family: monospace;" placeholder="Alternative URL for Shift+click"></textarea>
@@ -985,10 +1083,15 @@ class ServiceModal {
     const nameInput = dialog.querySelector('#service-name');
     const urlInput = dialog.querySelector('#service-url');
     const altUrlInput = dialog.querySelector('#service-alt-url');
+    const altNameInput = dialog.querySelector('#service-alt-name');
+    const shiftColorInput = dialog.querySelector('#service-shift-color');
     if (isEdit) {
       nameInput.value = existing.name || '';
       urlInput.value = existing.urlTemplate || '';
       altUrlInput.value = existing.altUrlTemplate || '';
+      altNameInput.value = existing.altName || '';
+      shiftColorInput.value =
+        this.normalizeHexColor(existing.shiftColor) || '#FF9800';
     }
 
     const closeModal = () => {
@@ -1004,6 +1107,8 @@ class ServiceModal {
       const name = ServiceValidator.sanitizeInput(nameInput.value);
       const url = this.normalizeFormUrl(urlInput.value);
       const altUrl = this.normalizeFormUrl(altUrlInput.value);
+      const altName = ServiceValidator.sanitizeInput(altNameInput.value);
+      const shiftColor = shiftColorInput.value;
 
       if (
         this.customServices.some(
@@ -1014,7 +1119,13 @@ class ServiceModal {
         return;
       }
 
-      const built = this.buildCustomServiceFromForm(name, url, altUrl);
+      const built = this.buildCustomServiceFromForm(
+        name,
+        url,
+        altUrl,
+        altName,
+        shiftColor
+      );
       if (built.error) {
         alert(built.error);
         return;
@@ -1029,6 +1140,10 @@ class ServiceModal {
           return;
         }
         service.color = this.customServices[idx].color || service.color;
+        if (!service.altUrlTemplate) {
+          service.shiftColor = null;
+          service.altName = null;
+        }
         if (name !== originalName) {
           this.renameCustomServiceReferences(originalName, name);
         }

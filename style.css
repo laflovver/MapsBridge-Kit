@@ -1204,6 +1204,11 @@ body.shift-held .service-btn[data-service-name="Labs HD Roads"].has-shift-modifi
   box-shadow: 0 0 12px 0 rgba(123, 31, 162, 0.4);
 }
 
+body.shift-held .service-btn.custom-shift-highlight.has-shift-modifier {
+  background: var(--custom-shift-color, #ff9800);
+  box-shadow: 0 0 12px 0 var(--custom-shift-glow, rgba(255, 152, 0, 0.45));
+}
+
 .btn-add-custom {
   padding: 3px 14px;
   background: rgba(145, 154, 168, 0.60);
