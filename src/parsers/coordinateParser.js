@@ -82,16 +82,62 @@ class CoordinateParser {
     return Math.round(this.earthCameraMetersToMapsZoom(z));
   }
 
+  static _decodeBase64ToBytes(b64) {
+    let normalized = b64.replace(/-/g, "+").replace(/_/g, "/");
+    while (normalized.length % 4) normalized += "=";
+    if (typeof atob !== "undefined") {
+      const bin = atob(normalized);
+      const buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      return buf;
+    }
+    if (typeof Buffer !== "undefined") {
+      return new Uint8Array(Buffer.from(normalized, "base64"));
+    }
+    return null;
+  }
+
+  static _extractGoogleEarthDataParam(fullUrl) {
+    const dataMatch = fullUrl.match(/\/data=([^?]+)/);
+    if (!dataMatch) return null;
+    const buf = this._decodeBase64ToBytes(dataMatch[1]);
+    if (!buf) return null;
+    for (let i = 0; i < buf.length - 17; i++) {
+      if (buf[i] === 0x19 && buf[i + 9] === 0x21) {
+        const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+        const lat = dv.getFloat64(i + 1, true);
+        const lon = dv.getFloat64(i + 10, true);
+        if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180 &&
+            (Math.abs(lat) > 0.01 || Math.abs(lon) > 0.01)) {
+          return { lat, lon };
+        }
+      }
+    }
+    return null;
+  }
+
+  static _isPlaceholderEarthCoords(lat, lon) {
+    return Math.abs(lat) < 0.01 && Math.abs(lon) < 0.01;
+  }
+
   static _extractGoogleEarthWebCamera(fullUrl) {
     if (!fullUrl.includes("earth.google.com")) return null;
-    const cam = fullUrl.match(/\/web\/@([^/]+)/);
+    const cam = fullUrl.match(/@([^/?]+)/);
     if (!cam) return null;
     const segments = cam[1].split(",");
     if (segments.length < 3) return null;
-    const lat = parseFloat(segments[0]);
-    const lon = parseFloat(segments[1]);
+    let lat = parseFloat(segments[0]);
+    let lon = parseFloat(segments[1]);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    if (this._isPlaceholderEarthCoords(lat, lon)) {
+      const fromData = this._extractGoogleEarthDataParam(fullUrl);
+      if (fromData) {
+        lat = fromData.lat;
+        lon = fromData.lon;
+      }
+    }
     let altMeters = null;
+    let distMeters = null;
     let bearing = null;
     let pitch = null;
     for (let i = 2; i < segments.length; i++) {
@@ -100,12 +146,16 @@ class CoordinateParser {
       const v = parseFloat(sm[1]);
       const letter = sm[2].toLowerCase();
       if (letter === "a") altMeters = v;
+      else if (letter === "d") distMeters = v;
       else if (letter === "h") bearing = v;
       else if (letter === "t") pitch = v;
     }
-    if (altMeters == null || !Number.isFinite(altMeters)) return null;
-    const zoom = this.earthCameraMetersToMapsZoom(altMeters);
-    const bingLvl = this.earthAltitudeToBingWebLevel(altMeters);
+    const cameraMeters = (distMeters != null && Number.isFinite(distMeters) &&
+      (altMeters == null || !Number.isFinite(altMeters) || distMeters > altMeters))
+      ? distMeters : altMeters;
+    if (cameraMeters == null || !Number.isFinite(cameraMeters)) return null;
+    const zoom = this.earthCameraMetersToMapsZoom(cameraMeters);
+    const bingLvl = this.earthAltitudeToBingWebLevel(cameraMeters);
     return {
       lat,
       lon,
