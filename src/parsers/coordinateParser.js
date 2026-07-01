@@ -69,6 +69,24 @@ class CoordinateParser {
     return Math.max(1, Math.min(22, Math.round(z * 100) / 100));
   }
 
+  static mapsZoomToEarthCameraMeters(zoom) {
+    const z = Math.max(1, Math.min(22, Number(zoom) || 15));
+    return Math.pow(2, 23 - z);
+  }
+
+  static formatGoogleEarthCameraSegment(coords) {
+    const lat = coords.lat;
+    const lon = coords.lon;
+    const distMeters = this.mapsZoomToEarthCameraMeters(coords.zoom);
+    const pitch = coords.pitch != null && Number.isFinite(coords.pitch) && coords.pitch > 0
+      ? coords.pitch
+      : 35;
+    const bearing = coords.bearing != null && Number.isFinite(coords.bearing)
+      ? coords.bearing
+      : 0;
+    return `${lat},${lon},0a,${distMeters}d,35y,${bearing}h,${pitch}t,0r`;
+  }
+
   static earthAltitudeToBingWebLevel(meters) {
     const m = Math.max(1, Number(meters));
     const lvl = 26.2 - Math.log2(m);

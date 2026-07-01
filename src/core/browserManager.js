@@ -207,21 +207,14 @@ class BrowserManager {
     return {
       match: (url) => url.hostname.includes("earth.google.com") && url.pathname.includes("/@"),
       transform: (url) => {
-        const parts = currentUrlStr.split("/@");
-        if (parts.length > 1) {
-          const segments = parts[1].split(",");
-          if (segments.length >= 2) {
-            segments[0] = String(coords.lat);
-            segments[1] = String(coords.lon);
-            if (segments.length >= 3) {
-              const seg2 = segments[2];
-              const match = seg2.match(/^([0-9\.]+)([a-zA-Z]*)/);
-              segments[2] = match ? String(coords.zoom) + (match[2] || "a") : String(coords.zoom) + "a";
-            }
-            return parts[0] + "/@" + segments.join(",");
-          }
+        if (typeof CoordinateParser === "undefined" ||
+            !CoordinateParser.formatGoogleEarthCameraSegment) {
+          return null;
         }
-        return null;
+        const camMatch = currentUrlStr.match(/@([^/?]+)/);
+        if (!camMatch) return null;
+        const newSegment = CoordinateParser.formatGoogleEarthCameraSegment(coords);
+        return currentUrlStr.replace(/@([^/?]+)/, "@" + newSegment);
       }
     };
   }
